@@ -11,3 +11,6 @@ pictures
 
 # Python
 __pycache__
+
+# The darktable settings of ./bin/pipeline.sh edit.
+.darktable

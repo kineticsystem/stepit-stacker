@@ -32,6 +32,8 @@ Stack merges the focus stacks shot by the StepIt Macro rig into one sharp image 
 - It merges every stack found in a folder in one run: one folder per angle, one image per angle.
 - It can follow the rig and merge each stack as soon as the rig has shot it, while the rig shoots the next one.
 
+The 3D pipeline, a prototype, goes further: 16-bit images developed and graded with darktable, a quilt, and the Looking Glass Portrait. See [`pipeline/README.md`](pipeline/README.md).
+
 ## Prerequisites
 
 We need a computer with Ubuntu 24.04 and Docker. Please refer to the document [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/).

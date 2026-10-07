@@ -25,6 +25,8 @@
 
 This document explains how StepIt Stacker is built, what each part is responsible for, and where to start when we want to change something. It assumes we have read the [README](../README.md) and merged a stack once.
 
+This document covers the stacker and its watcher. The 3D pipeline, a prototype that develops with darktable, merges in 16 bits and shows the result on the Looking Glass Portrait, is described in [`pipeline/README.md`](../pipeline/README.md).
+
 It follows one idea: **the rig only shoots, and says when a stack is complete; everything else happens on this computer**. The rig, [StepIt Macro](https://github.com/kineticsystem/stepit-macro), knows nothing about StepIt Stacker: it publishes a fact about its own pictures, and StepIt Stacker reads it, copies the pictures and develops them here.
 
 ## The Big Picture
