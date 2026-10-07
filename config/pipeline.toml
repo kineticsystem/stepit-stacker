@@ -1,0 +1,28 @@
+# The settings of the pipeline, see pipeline/README.md.
+
+# The rig, and its pictures folder.
+[rig]
+host = "stepit.local"
+user = "robot"                      # The user for ssh and rsync, with this computer's key.
+port = 9090                         # The commander's rosbridge.
+pictures = "stepit-macro/pictures"  # Relative to the user's home on the rig.
+
+# Where the rig's pictures are copied, and every image of a session is saved:
+# relative to the repo, or an absolute path.
+[pictures]
+mirror = "pictures"
+
+# Every merged image is turned clockwise by this many degrees, 0, 90, 180 or
+# 270: 0 keeps it as the sensor sees it, landscape.
+[images]
+rotate = 0
+
+# The quilt for the Looking Glass Portrait: 8 x 6 views of 420 x 560 pixels.
+# Set reverse to true if the depth looks inside out: the views then go from
+# the last angle of the session to the first.
+[quilt]
+columns = 8
+rows = 6
+view_width = 420
+view_height = 560
+reverse = false

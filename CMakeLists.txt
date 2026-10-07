@@ -11,6 +11,7 @@ endif()
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs video)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBRAW REQUIRED IMPORTED_TARGET libraw_r)
+pkg_check_modules(LIBTIFF REQUIRED IMPORTED_TARGET libtiff-4)
 
 # focus-stack (MIT) aligns and merges the frames. Its own CMakeLists.txt only
 # works as the top-level project, so fetch the sources and build its library
@@ -35,3 +36,9 @@ target_compile_options(focus_stack PRIVATE -w)
 add_executable(stack src/main.cc src/raw_loader.cc src/defect_pixels.cc)
 target_compile_options(stack PRIVATE -Wall -Wextra)
 target_link_libraries(stack PRIVATE focus_stack PkgConfig::LIBRAW)
+
+# focus-merge, the 16-bit merge of the pipeline, see pipeline/README.md: our own
+# alignment and merge, as focus-stack works in 8 bits.
+add_executable(focus-merge src/merge/main.cc src/merge/tiff_io.cc src/merge/align.cc src/merge/fuse.cc)
+target_compile_options(focus-merge PRIVATE -Wall -Wextra)
+target_link_libraries(focus-merge PRIVATE ${OpenCV_LIBS} PkgConfig::LIBTIFF)
