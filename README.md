@@ -158,6 +158,7 @@ When the folder itself is the stack, the image is named after it. When the stack
 | `--min-jump <n>` | `256` | The smallest difference, in raw units, for a pixel to count as defective. The 5D Mark II is 14-bit: about `1024` is black and `15600` is white. |
 | `--no-defect-repair` | off | Keep the hot and dead pixels. |
 | `--half` | off | Decode at half resolution, 4 times faster, for previews. |
+| `--rotate <degrees>` | `0` | Turn every image clockwise by `0`, `90`, `180` or `270` degrees. The orientation the camera records is ignored: the images come out as the sensor sees them, landscape, turned by this. |
 | `--threads <n>` | one per core | Number of worker threads. Fewer threads use less memory. |
 | `-v`, `--verbose` | off | Print the details of each step, including the alignment of each frame. |
 
@@ -229,6 +230,10 @@ It runs in the same image as the stacker. It reads the ssh keys of `~/.ssh`, mou
 **Coloured dots remain in the image**. A hot pixel that is only slightly too bright is below the threshold. Lower it, e.g. `--min-jump 128`, and compare the result.
 
 **The image is too dark or too bright**. The tone curve copies the camera's JPEG, so the image is as bright as the shots on the camera's screen. Change the brightness for the whole stack, e.g. `--brightness 1.5`. If the output says `No camera JPEG`, the raw file has no embedded JPEG and the image has a plain sRGB rendering, which is darker.
+
+**The images are turned the wrong way, or some angles differ from others**. The stacker ignores the orientation the camera records, whose tilt sensor cannot tell which way is up when the camera points down, and turns every image by `--rotate` instead. Pick the angle once, e.g. `./bin/watcher.sh start -- --rotate 90`.
+
+**The stacker crashes with a segmentation fault**. focus-stack's alignment failed on a frame, and the process crashed instead of reporting it. It happened when the frames of a stack had different orientations, which the stacker now prevents, and it may still happen on frames with little texture. That stack gets no image; the watcher goes on with the next.
 
 **Edges look doubled**. The stack was merged with `--no-align`, or the alignment of a frame went wrong. Run with `--verbose` and look at the `transform` lines: the magnification of each frame should be about 1.5% less than the previous one, e.g. `0.985`, then `0.971`.
 

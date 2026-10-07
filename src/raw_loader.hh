@@ -32,6 +32,11 @@ struct RawOptions
   cv::Mat tone;
   // Decode at half the resolution: 4 times faster, for previews.
   bool half_size = false;
+  // Turn every frame clockwise by this many degrees: 0, 90, 180 or 270. The
+  // orientation the camera records is ignored: its tilt sensor cannot tell
+  // which way is up when the camera points down at the subject, and gives
+  // frames of one stack different orientations, which cannot be merged.
+  int rotation = 0;
 };
 
 struct RawImage

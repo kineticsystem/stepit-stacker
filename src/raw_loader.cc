@@ -54,8 +54,8 @@ float autoBrightness(const LibRaw& raw)
 }
 
 // Fits the tone curve that maps our rendering of a frame, bgr, to the camera's
-// JPEG of the same frame. See RawImage::tone. flip is the orientation of the
-// raw file.
+// JPEG of the same frame. See RawImage::tone. flip is LibRaw's orientation
+// code of the rotation our rendering was given, see flipOf.
 cv::Mat fitCameraTone(LibRaw& raw, int flip, const cv::Mat& bgr)
 {
   if (raw.unpack_thumb() != LIBRAW_SUCCESS || raw.imgdata.thumbnail.tformat != LIBRAW_THUMBNAIL_JPEG)
@@ -69,9 +69,9 @@ cv::Mat fitCameraTone(LibRaw& raw, int flip, const cv::Mat& bgr)
   {
     return {};
   }
-  // The JPEG is stored as the sensor sees it; our rendering is turned upright.
-  // Turn the JPEG with the orientation of the raw file, not with its own EXIF
-  // orientation, which OpenCV would otherwise apply.
+  // The JPEG is stored as the sensor sees it. Turn it as our rendering was
+  // turned, not by its own EXIF orientation, which OpenCV would otherwise
+  // apply.
   cv::Mat camera = cv::imdecode(cv::Mat(1, int(thumb->data_size), CV_8U, thumb->data),
                                 cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION);
   switch (flip)
@@ -139,6 +139,24 @@ cv::Mat fitCameraTone(LibRaw& raw, int flip, const cv::Mat& bgr)
   return lut;
 }
 
+/// @brief LibRaw's orientation code of a clockwise rotation in degrees, see LibRaw's user_flip.
+int flipOf(int rotation)
+{
+  switch (rotation)
+  {
+    case 0:
+      return 0;
+    case 90:
+      return 6;
+    case 180:
+      return 3;
+    case 270:
+      return 5;
+    default:
+      throw std::invalid_argument("the rotation must be 0, 90, 180 or 270 degrees, not " + std::to_string(rotation));
+  }
+}
+
 }  // namespace
 
 RawImage loadRaw(const std::string& path, const RawOptions& options)
@@ -153,6 +171,7 @@ RawImage loadRaw(const std::string& path, const RawOptions& options)
   params.use_camera_wb = 1;   // The white balance set on the camera.
   params.no_auto_bright = 1;  // The brightness is set below, the same for every frame of a stack.
   params.half_size = options.half_size ? 1 : 0;
+  params.user_flip = flipOf(options.rotation);
 
   check(raw->open_file(path.c_str()), "open", path);
   check(raw->unpack(), "unpack", path);
@@ -166,7 +185,7 @@ RawImage loadRaw(const std::string& path, const RawOptions& options)
   result.brightness = options.brightness == kAutoBrightness ? autoBrightness(*raw) : options.brightness;
   params.bright = result.brightness;
 
-  const int flip = raw->imgdata.sizes.flip;
+  const int flip = params.user_flip;
   int status = LIBRAW_SUCCESS;
   std::unique_ptr<libraw_processed_image_t, void (*)(libraw_processed_image_t*)> image(
       raw->dcraw_make_mem_image(&status), LibRaw::dcraw_clear_mem);
