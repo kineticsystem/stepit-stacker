@@ -295,17 +295,18 @@ A merge cut short, by a crash or a stop of the container, leaves no image behind
 
 ## The Containers
 
-One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, OpenCV, LibRaw, and the watcher's tools: Python with `python3-websocket`, rsync, ssh and `libnss-mdns`. It runs in three ways:
+One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, OpenCV, LibRaw, and the watcher's tools: Python with `python3-websocket`, rsync, ssh and `libnss-mdns`. It also holds what the 3D pipeline uses: darktable, libtiff, OpenCV for Python, Looking Glass Bridge and LKG-Toolkit, see [`pipeline/README.md`](../pipeline/README.md). It runs in four ways:
 
 | Container | Started by | What it mounts |
 |---|---|---|
 | `stepit-stacker`, for development | `./docker/dock.sh stepit-stacker start` | The repo at `~/ws`, the home at its own path. |
 | A throwaway one per run | `./bin/stack.sh` | The repo at `~/ws`, the home at its own path, and the folders given outside it. |
 | `stepit-stacker-watcher` | `./bin/watcher.sh start` | The repo at `~/ws`, the home at its own path, `~/.ssh` read-only, and the host's Avahi socket. |
+| `stepit-pipeline`, the 3D pipeline | `./bin/pipeline.sh start` | The same as the watcher's, and the screen of the desktop's login, the GPU, and the USB, HID devices and drive of the Looking Glass. |
 
-The repo is always at `~/ws`, so the CMake cache in `build`, which records its path, is valid in all three; the stacker is built once and run by all of them. The home is mounted at its own path, so that a folder is given to the stacker by its host path.
+The repo is always at `~/ws`, so the CMake cache in `build`, which records its path, is valid in all of them; the stacker is built once and run by all of them. The home is mounted at its own path, so that a folder is given to the stacker by its host path.
 
-Docker containers cannot resolve `.local` names, e.g. `stepit.local`: the watcher's container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`. The container restarts with the computer, until `./bin/watcher.sh stop`.
+Docker containers cannot resolve `.local` names, e.g. `stepit.local`: the watcher's container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`. The watcher's container restarts with the computer, until `./bin/watcher.sh stop`. The pipeline's does not: it uses the screen of one login, so it is started after logging in. Only one of the two watchers should run.
 
 ## Tests
 
