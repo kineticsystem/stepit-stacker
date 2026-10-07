@@ -6,11 +6,11 @@ compile_commands.json
 # VSCode
 .vscode
 
-# The mirror of the rig's pictures, and the stacked images: see bin/watcher.sh.
+# The mirror of the rig's pictures, and the images of each session: see config/pipeline.toml.
 pictures
 
 # Python
 __pycache__
 
-# The darktable settings of ./bin/pipeline.sh edit.
+# darktable's settings for ./bin/pipeline.sh edit.
 .darktable

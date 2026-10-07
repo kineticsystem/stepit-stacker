@@ -1,4 +1,4 @@
-"""The command line of the pipeline: python3 -m pipeline <command>. See pipeline/README.md."""
+"""The command line of the pipeline: python3 -m pipeline <command>. See README.md."""
 
 import argparse
 import logging

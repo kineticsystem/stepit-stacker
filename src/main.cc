@@ -1,261 +1,117 @@
-// Merges each focus stack of a folder into a single image, as Zerene Stacker
-// does: decode the raw frames, align them and keep the sharpest detail of each.
+// focus-merge: merges the developed frames of one focus stack, 16-bit TIFF
+// files, into one 16-bit TIFF that is sharp everywhere.
+//
+//   focus-merge -o merged.tif frame1.tif frame2.tif ...
+//
+// The frames are read twice, to keep the memory low: once to align them, at
+// half size, and once to merge them, at full size.
 
-#include <focusstack.hh>
-
-#include <algorithm>
-#include <cctype>
-#include <filesystem>
+#include <chrono>
 #include <iostream>
-#include <map>
-#include <set>
 #include <string>
 #include <vector>
 
-#include "raw_loader.hh"
+#include <opencv2/core.hpp>
 
-namespace fs = std::filesystem;
+#include "align.hh"
+#include "fuse.hh"
+#include "tiff_io.hh"
 
 namespace
 {
 
 struct Options
 {
-  fs::path input;
-  fs::path output;  // Empty: <input>/stacked.
-  bool jpeg = false;
-  // Even with a rig that repeats its positions, the frames need aligning: on a
-  // linear rail the camera moves towards the subject, so each frame is
-  // magnified a little more than the one before, about 1.5% per step.
-  bool align = true;
-  bool depthmap = false;
-  bool verbose = false;
-  int threads = 0;  // 0: focus-stack's default, one per core.
-  stack::RawOptions raw;
+  std::string output;
+  std::vector<std::string> frames;
+  int rotation = 0;  // Clockwise, in degrees.
 };
 
 void printUsage(std::ostream& out)
 {
-  out << "Usage: stack <folder> [options]\n"
+  out << "Usage: focus-merge -o <merged.tif> <frame.tif>... [--rotate <degrees>]\n"
          "\n"
-         "Merges each focus stack found in <folder> into one image. A stack is a\n"
-         "folder of raw files (CR2, ...): <folder> itself, or any folder below it.\n"
+         "Aligns the frames of a focus stack, 16-bit RGB TIFF files in the order they\n"
+         "were shot, and merges them into one 16-bit TIFF that is sharp everywhere,\n"
+         "with the colour profile of the frames.\n"
          "\n"
-         "Options:\n"
-         "  -o, --output <dir>   Where to save the images (default: <folder>/stacked)\n"
-         "  --jpg                Save JPEG instead of TIFF\n"
-         "  --depthmap           Also save a depth map of each stack\n"
-         "  --no-align           Merge the frames as they are, without aligning them\n"
-         "  --brightness <f>     Brightness multiplier for every frame (default: computed\n"
-         "                       from the first frame of each stack)\n"
-         "  --no-camera-tone     Keep a plain sRGB rendering instead of the look of the\n"
-         "                       camera's JPEG\n"
-         "  --min-jump <n>       Defect repair threshold, in raw units (default: "
-      << stack::kDefaultMinJump
-      << ")\n"
-         "  --no-defect-repair   Do not repair hot and dead pixels\n"
-         "  --half               Decode at half resolution, for quick previews\n"
-         "  --rotate <degrees>   Turn every image clockwise by 0, 90, 180 or 270 degrees\n"
-         "                       (default: 0, as the sensor sees it; the orientation the\n"
-         "                       camera records is ignored)\n"
-         "  --threads <n>        Number of worker threads (default: one per core)\n"
-         "  -v, --verbose        Print the details of each step\n"
+         "  -o <file>            The merged image\n"
+         "  --rotate <degrees>   Turn the merged image clockwise by 0, 90, 180 or 270\n"
          "  -h, --help           Print this help\n";
 }
 
-// Returns false, after printing why, if the arguments are wrong.
-bool parseArguments(int argc, char** argv, Options& options)
+Options parseArguments(int argc, char** argv)
 {
-  std::vector<std::string> args(argv + 1, argv + argc);
-  for (size_t i = 0; i < args.size(); ++i)
+  Options options;
+  for (int i = 1; i < argc; ++i)
   {
-    const std::string& arg = args[i];
-    auto value = [&]() -> const std::string& {
-      if (i + 1 >= args.size())
+    const std::string arg = argv[i];
+    auto value = [&]() -> std::string {
+      if (i + 1 >= argc)
       {
         throw std::invalid_argument(arg + " needs a value");
       }
-      return args[++i];
+      return argv[++i];
     };
     if (arg == "-h" || arg == "--help")
     {
       printUsage(std::cout);
       std::exit(0);
     }
-    else if (arg == "-o" || arg == "--output")
+    else if (arg == "-o")
     {
       options.output = value();
     }
-    else if (arg == "--jpg")
-    {
-      options.jpeg = true;
-    }
-    else if (arg == "--no-align")
-    {
-      options.align = false;
-    }
-    else if (arg == "--depthmap")
-    {
-      options.depthmap = true;
-    }
-    else if (arg == "--brightness")
-    {
-      options.raw.brightness = std::stof(value());
-    }
-    else if (arg == "--min-jump")
-    {
-      options.raw.min_jump = std::stoi(value());
-    }
-    else if (arg == "--no-camera-tone")
-    {
-      options.raw.camera_tone = false;
-    }
-    else if (arg == "--no-defect-repair")
-    {
-      options.raw.repair_defects = false;
-    }
-    else if (arg == "--half")
-    {
-      options.raw.half_size = true;
-    }
     else if (arg == "--rotate")
     {
-      options.raw.rotation = std::stoi(value());
-      if (options.raw.rotation % 90 != 0 || options.raw.rotation < 0 || options.raw.rotation > 270)
+      options.rotation = std::stoi(value());
+      if (options.rotation % 90 != 0 || options.rotation < 0 || options.rotation > 270)
       {
         throw std::invalid_argument("--rotate takes 0, 90, 180 or 270");
       }
-    }
-    else if (arg == "--threads")
-    {
-      options.threads = std::stoi(value());
-    }
-    else if (arg == "-v" || arg == "--verbose")
-    {
-      options.verbose = true;
     }
     else if (!arg.empty() && arg[0] == '-')
     {
       throw std::invalid_argument("unknown option " + arg);
     }
-    else if (options.input.empty())
-    {
-      options.input = arg;
-    }
     else
     {
-      throw std::invalid_argument("only one folder can be given");
+      options.frames.push_back(arg);
     }
   }
-  if (options.input.empty())
+  if (options.output.empty())
   {
-    throw std::invalid_argument("missing folder");
+    throw std::invalid_argument("missing -o <merged.tif>");
   }
-  return true;
+  if (options.frames.empty())
+  {
+    throw std::invalid_argument("no frames given");
+  }
+  return options;
 }
 
-bool isRawFile(const fs::path& path)
+cv::Mat rotated(const cv::Mat& image, int degrees)
 {
-  static const std::set<std::string> kExtensions = { ".cr2", ".cr3", ".crw", ".nef", ".arw", ".dng",
-                                                     ".raf", ".orf", ".rw2", ".pef", ".srw" };
-  std::string extension = path.extension().string();
-  std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
-  return kExtensions.count(extension) > 0;
+  cv::Mat result;
+  switch (degrees)
+  {
+    case 90:
+      cv::rotate(image, result, cv::ROTATE_90_CLOCKWISE);
+      return result;
+    case 180:
+      cv::rotate(image, result, cv::ROTATE_180);
+      return result;
+    case 270:
+      cv::rotate(image, result, cv::ROTATE_90_COUNTERCLOCKWISE);
+      return result;
+    default:
+      return image;
+  }
 }
 
-// Maps each folder holding raw files to those files, sorted by name, which is
-// the order the camera took them in.
-std::map<fs::path, std::vector<fs::path>> findStacks(const fs::path& root, const fs::path& skip)
+double secondsSince(std::chrono::steady_clock::time_point start)
 {
-  std::map<fs::path, std::vector<fs::path>> stacks;
-  for (auto it = fs::recursive_directory_iterator(root); it != fs::recursive_directory_iterator(); ++it)
-  {
-    if (it->is_directory() && fs::equivalent(it->path(), skip))
-    {
-      it.disable_recursion_pending();
-    }
-    else if (it->is_regular_file() && isRawFile(it->path()))
-    {
-      stacks[it->path().parent_path()].push_back(it->path());
-    }
-  }
-  for (auto& [folder, files] : stacks)
-  {
-    std::sort(files.begin(), files.end());
-  }
-  return stacks;
-}
-
-// The name of a stack's image: its path below the root, e.g.
-// "angle_01_-17.0deg", or the root's own name when the root is the stack.
-std::string stackName(const fs::path& folder, const fs::path& root)
-{
-  const fs::path relative = fs::relative(folder, root);
-  if (relative == ".")
-  {
-    return fs::canonical(root).filename().string();
-  }
-  std::string name = relative.generic_string();
-  std::replace(name.begin(), name.end(), '/', '_');
-  return name;
-}
-
-bool mergeStack(const std::vector<fs::path>& files, const fs::path& output, const fs::path& depthmap,
-                const Options& options)
-{
-  focusstack::FocusStack merger;
-  merger.set_output(output.string());
-  if (!depthmap.empty())
-  {
-    merger.set_depthmap(depthmap.string());
-  }
-  merger.set_verbose(options.verbose);
-  if (!options.align)
-  {
-    merger.set_align_flags(focusstack::FocusStack::ALIGN_NONE);
-  }
-  if (options.threads > 0)
-  {
-    merger.set_threads(options.threads);
-  }
-
-  // Decode the frames while the workers already align and merge the previous ones.
-  merger.start();
-  // The brightness and the tone curve of the first frame apply to all of them.
-  stack::RawOptions raw_options = options.raw;
-  for (const fs::path& file : files)
-  {
-    const stack::RawImage image = stack::loadRaw(file.string(), raw_options);
-    if (raw_options.brightness == stack::kAutoBrightness)
-    {
-      raw_options.brightness = image.brightness;
-      std::cout << "  Brightness: " << image.brightness << "\n";
-    }
-    if (raw_options.camera_tone && raw_options.tone.empty())
-    {
-      if (image.tone.empty())
-      {
-        std::cout << "  No camera JPEG in " << file.filename().string() << ": plain sRGB rendering\n";
-        raw_options.camera_tone = false;
-      }
-      raw_options.tone = image.tone;
-    }
-    if (options.verbose || image.repaired > 0)
-    {
-      std::cout << "  " << file.filename().string() << ": " << image.repaired << " defective pixels repaired\n";
-    }
-    merger.add_image(image.bgr);
-  }
-  merger.do_final_merge();
-
-  bool success = false;
-  std::string error;
-  merger.wait_done(success, error);
-  if (!success)
-  {
-    std::cerr << "Error: " << error << "\n";
-  }
-  return success;
+  return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 }
 
 }  // namespace
@@ -265,7 +121,7 @@ int main(int argc, char** argv)
   Options options;
   try
   {
-    parseArguments(argc, argv, options);
+    options = parseArguments(argc, argv);
   }
   catch (const std::exception& e)
   {
@@ -274,46 +130,47 @@ int main(int argc, char** argv)
     return 2;
   }
 
-  if (!fs::is_directory(options.input))
+  try
   {
-    std::cerr << "Error: " << options.input << " is not a folder\n";
-    return 2;
-  }
-  const fs::path output = options.output.empty() ? options.input / "stacked" : options.output;
-  fs::create_directories(output);
+    const auto start = std::chrono::steady_clock::now();
+    std::vector<cv::Mat> alignment_images;
+    cv::Size size;
+    for (const std::string& frame : options.frames)
+    {
+      const merge::Image image = merge::readTiff(frame);
+      if (size.empty())
+      {
+        size = image.rgb.size();
+      }
+      else if (image.rgb.size() != size)
+      {
+        throw std::runtime_error(frame + " does not have the size of the first frame");
+      }
+      alignment_images.push_back(merge::alignmentImage(image.rgb));
+    }
+    const merge::Alignment alignment = merge::alignStack(alignment_images);
+    alignment_images.clear();
+    std::cout << "Aligned " << options.frames.size() << " frames to frame " << alignment.reference + 1 << " in "
+              << secondsSince(start) << " s\n";
 
-  const auto stacks = findStacks(options.input, output);
-  if (stacks.empty())
+    merge::PyramidFusion fusion;
+    std::vector<uint8_t> icc;
+    for (size_t i = 0; i < options.frames.size(); ++i)
+    {
+      merge::Image image = merge::readTiff(options.frames[i]);
+      if (static_cast<int>(i) == alignment.reference)
+      {
+        icc = image.icc;
+      }
+      fusion.add(merge::toReference(image.rgb, alignment, static_cast<int>(i)));
+    }
+    merge::writeTiff(options.output, rotated(fusion.result(), options.rotation), icc);
+    std::cout << "Merged into " << options.output << " in " << secondsSince(start) << " s\n";
+  }
+  catch (const std::exception& e)
   {
-    std::cerr << "Error: no raw files found in " << options.input << "\n";
+    std::cerr << "Error: " << e.what() << "\n";
     return 1;
   }
-
-  int failures = 0;
-  for (const auto& [folder, files] : stacks)
-  {
-    const std::string name = stackName(folder, options.input);
-    const fs::path image = output / (name + (options.jpeg ? ".jpg" : ".tif"));
-    const fs::path depthmap = options.depthmap ? output / (name + "_depthmap.png") : fs::path();
-    std::cout << "Stacking " << files.size() << " frames of " << folder.string() << "\n";
-    try
-    {
-      if (mergeStack(files, image, depthmap, options))
-      {
-        std::cout << "  -> " << image.string() << "\n";
-      }
-      else
-      {
-        ++failures;
-      }
-    }
-    catch (const std::exception& e)
-    {
-      std::cerr << "Error: " << e.what() << "\n";
-      ++failures;
-    }
-  }
-
-  std::cout << stacks.size() - failures << " of " << stacks.size() << " stacks merged\n";
-  return failures == 0 ? 0 : 1;
+  return 0;
 }

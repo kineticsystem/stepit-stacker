@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
-# Runs the 3D pipeline, pipeline/, in its container, stepit-pipeline, which can
-# draw on the screen and reach the Looking Glass. See pipeline/README.md.
+# Runs the pipeline, pipeline/, in its container, stepit-pipeline, which can
+# draw on the screen and reach the Looking Glass. See README.md.
 #
 #   ./bin/pipeline.sh start                    build, then start the container and its watcher
 #   ./bin/pipeline.sh stop
