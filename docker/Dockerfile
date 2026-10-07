@@ -1,5 +1,6 @@
-# Ubuntu 24.04 with the build tools and the libraries of the stacker, for user
-# "developer". The same image builds the stacker and runs it.
+# Ubuntu 24.04 with the build tools, darktable, Looking Glass's software and
+# the libraries of the pipeline, for user "developer". The same image builds
+# focus-merge and runs the pipeline.
 
 # Looking Glass Bridge, the service that drives the Looking Glass Portrait: its
 # installer for Ubuntu, from Looking Glass's Linux archive, run in the image
@@ -64,18 +65,15 @@ RUN apt-get -y upgrade
 RUN apt-get -y install build-essential cmake git ca-certificates pkg-config
 RUN apt-get -y install clang-format
 
-# OpenCV aligns and merges the frames (focus-stack is built on it), LibRaw
-# decodes the raw files.
-RUN apt-get -y install libopencv-dev libraw-dev
+# darktable develops and grades, focus-merge aligns and merges with OpenCV and
+# reads and writes the 16-bit TIFFs with libtiff, and the quilt is made with
+# OpenCV for Python.
+RUN apt-get -y install darktable libopencv-dev libtiff-dev python3-opencv python3-numpy
 
-# The 3D pipeline, pipeline/: darktable develops and grades, focus-merge reads
-# and writes 16-bit TIFF with libtiff, and the quilt is made with OpenCV.
-RUN apt-get -y install darktable libtiff-dev python3-opencv python3-numpy
-
-# The watcher, watcher/stack_watcher.py: it follows the rig through its
-# rosbridge, copies each finished stack with rsync over ssh, and resolves the
-# rig's name, e.g. stepit.local, through the host's Avahi daemon, whose socket
-# bin/watcher.sh mounts.
+# The watcher, pipeline/watch.py: it follows the rig through its rosbridge,
+# copies each finished angle with rsync over ssh, and resolves the rig's name,
+# e.g. stepit.local, through the host's Avahi daemon, whose socket
+# bin/pipeline.sh mounts.
 RUN apt-get -y install python3 python3-websocket rsync openssh-client libnss-mdns
 
 # Looking Glass Bridge and LKG-Toolkit, see the stages above: the libraries
