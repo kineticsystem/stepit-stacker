@@ -55,6 +55,9 @@ void printUsage(std::ostream& out)
       << ")\n"
          "  --no-defect-repair   Do not repair hot and dead pixels\n"
          "  --half               Decode at half resolution, for quick previews\n"
+         "  --rotate <degrees>   Turn every image clockwise by 0, 90, 180 or 270 degrees\n"
+         "                       (default: 0, as the sensor sees it; the orientation the\n"
+         "                       camera records is ignored)\n"
          "  --threads <n>        Number of worker threads (default: one per core)\n"
          "  -v, --verbose        Print the details of each step\n"
          "  -h, --help           Print this help\n";
@@ -114,6 +117,14 @@ bool parseArguments(int argc, char** argv, Options& options)
     else if (arg == "--half")
     {
       options.raw.half_size = true;
+    }
+    else if (arg == "--rotate")
+    {
+      options.raw.rotation = std::stoi(value());
+      if (options.raw.rotation % 90 != 0 || options.raw.rotation < 0 || options.raw.rotation > 270)
+      {
+        throw std::invalid_argument("--rotate takes 0, 90, 180 or 270");
+      }
     }
     else if (arg == "--threads")
     {

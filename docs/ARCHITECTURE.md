@@ -10,6 +10,7 @@
   - [Every Frame of a Stack Is Developed the Same Way](#every-frame-of-a-stack-is-developed-the-same-way)
   - [Hot and Dead Pixels](#hot-and-dead-pixels)
   - [The Camera's Tones](#the-cameras-tones)
+  - [The Orientation](#the-orientation)
   - [Alignment and Merging](#alignment-and-merging)
 - [The Watcher](#the-watcher)
   - [Following the Rig](#following-the-rig)
@@ -173,7 +174,13 @@ A plain sRGB rendering of the raw data is darker and flatter than the shots as w
 
 On the first frame of a stack, it decodes the embedded JPEG, turns it upright, and compares it with our rendering at 1/16 of the size, where the few pixels the camera crops differently become less than one. For each colour, the median level of the JPEG at each level of our rendering is a point of the curve; the levels in between are joined by straight lines, from black to white, and the curve never goes down, so that noise cannot invert it. The result is a lookup table for `cv::LUT()`.
 
-The orientation is the detail that is easy to break. The JPEG is stored as the sensor sees it, and our rendering is turned upright by LibRaw. The JPEG is turned with the orientation of the raw file, read with `sizes.flip` before LibRaw makes its image, and decoded with `IMREAD_IGNORE_ORIENTATION`: OpenCV would otherwise turn it by its own EXIF orientation too, and the curve would compare two images that do not match. When the shapes still do not match, or the file has no JPEG, the stack keeps a plain sRGB rendering, and the command says so.
+The orientation is the detail that is easy to break. The JPEG is stored as the sensor sees it. It is turned exactly as our rendering was, by `--rotate`, and decoded with `IMREAD_IGNORE_ORIENTATION`: OpenCV would otherwise turn it by its own EXIF orientation too, and the curve would compare two images that do not match. When the shapes still do not match, or the file has no JPEG, the stack keeps a plain sRGB rendering, and the command says so.
+
+### The Orientation
+
+**The orientation the camera records is ignored.** Every frame is decoded as the sensor sees it, landscape, then turned by `--rotate`, 0 by default, the same for every frame of every stack. The 5D Mark II decides the orientation with a tilt sensor, which cannot tell which way is up when the camera points down at the subject, as it does on the rig. It records different orientations for the frames of one stack: on one session of the rig, an angle had 6 frames flagged landscape and 6 flagged portrait, either way, even with Auto rotate off in the camera's menu. Frames turned by their own flags are partly landscape and partly portrait, which focus-stack cannot align: its alignment then reads outside the image, and the process crashes.
+
+`flipOf()` in [`raw_loader.cc`](../src/raw_loader.cc) turns `--rotate` into LibRaw's `user_flip`, which overrides the file's flag; `fitCameraTone()` takes the same code.
 
 ### Alignment and Merging
 
@@ -182,7 +189,7 @@ focus-stack aligns each frame to its neighbour, with an affine transform, and co
 Then focus-stack merges the frames with a wavelet transform, keeping the sharpest detail at each point, and crops the image to the area every frame covers.
 
 > [!WARNING]
-> On frames with little texture, e.g. a subject at the edge of the frame on a plain background, focus-stack's alignment can fail, and the process then crashes with a segmentation fault instead of reporting an error. The stack gets no image; the watcher logs the failure and goes on with the next stack.
+> When focus-stack's alignment fails on a frame, the process crashes with a segmentation fault instead of reporting an error. The stack gets no image; the watcher logs the failure and goes on with the next stack. The stacks that failed this way on the rig had frames of different orientations, before the camera's orientation was ignored; frames with little texture, e.g. a subject at the edge of the frame on a plain background, may still make it fail.
 
 focus-stack works in 8 bits per channel only, so the images are 8-bit TIFF.
 
@@ -312,6 +319,8 @@ StepIt Stacker has no automated tests yet. It was checked by hand, on sessions o
 The stack of the rig, `StackDone` and its `stack.json`, is tested in StepIt Macro, against its fake camera.
 
 ## How to Extend StepIt Stacker
+
+**Turn every image another way.** `./bin/watcher.sh start -- --rotate 90` turns the images of every stack the watcher merges. Never let a frame keep the camera's orientation: see [The Orientation](#the-orientation).
 
 **Add an option of the stacker.** Add it to `Options` and `parseArguments()` in [`main.cc`](../src/main.cc), and to the help; if it concerns decoding, to `RawOptions` in [`raw_loader.hh`](../src/raw_loader.hh). Document it in the README's table of parameters. Options given after `--` to `./bin/watcher.sh start` reach every merge of the watcher.
 
