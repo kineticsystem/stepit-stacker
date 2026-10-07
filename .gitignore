@@ -1,0 +1,13 @@
+# CMake, building in the container.
+build
+compile_commands.json
+.cache
+
+# VSCode
+.vscode
+
+# The mirror of the rig's pictures, and the stacked images: see bin/watcher.sh.
+pictures
+
+# Python
+__pycache__
