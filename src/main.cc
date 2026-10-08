@@ -3,18 +3,21 @@
 //
 //   focus-merge -o merged.tif frame1.tif frame2.tif ...
 //
-// The frames are read twice, to keep the memory low: once to align them, at
-// half size, and once to merge them, at full size.
+// The frames are read once, at the same time, and kept in 16 bits until each
+// is merged: about 130 MB per frame of a 5D Mark II.
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <opencv2/core.hpp>
 
 #include "align.hh"
 #include "fuse.hh"
+#include "parallel.hh"
 #include "tiff_io.hh"
 
 namespace
@@ -133,36 +136,45 @@ int main(int argc, char** argv)
   try
   {
     const auto start = std::chrono::steady_clock::now();
-    std::vector<cv::Mat> alignment_images;
-    cv::Size size;
-    for (const std::string& frame : options.frames)
+    const int count = static_cast<int>(options.frames.size());
+    std::vector<merge::Image> images(count);
+    std::vector<cv::Mat> alignment_images(count);
+    merge::parallelFor(count, [&](int i) {
+      images[i] = merge::readTiff(options.frames[i]);
+      alignment_images[i] = merge::alignmentImage(merge::toFloat(images[i].rgb));
+    });
+    std::cout << "Read " << count << " frames in " << secondsSince(start) << " s\n";
+    for (int i = 1; i < count; ++i)
     {
-      const merge::Image image = merge::readTiff(frame);
-      if (size.empty())
+      if (images[i].rgb.size() != images[0].rgb.size())
       {
-        size = image.rgb.size();
+        throw std::runtime_error(options.frames[i] + " does not have the size of the first frame");
       }
-      else if (image.rgb.size() != size)
-      {
-        throw std::runtime_error(frame + " does not have the size of the first frame");
-      }
-      alignment_images.push_back(merge::alignmentImage(image.rgb));
     }
     const merge::Alignment alignment = merge::alignStack(alignment_images);
     alignment_images.clear();
     std::cout << "Aligned " << options.frames.size() << " frames to frame " << alignment.reference + 1 << " in "
               << secondsSince(start) << " s\n";
 
+    // A few frames are warped and split at the same time, then added in the
+    // order they were shot: more at a time compete for the memory's bandwidth
+    // rather than go faster, and each holds its pyramid, about 450 MB.
+    constexpr int kFramesAtATime = 4;
     merge::PyramidFusion fusion;
-    std::vector<uint8_t> icc;
-    for (size_t i = 0; i < options.frames.size(); ++i)
+    const std::vector<uint8_t> icc = images[alignment.reference].icc;
+    for (int first = 0; first < count; first += kFramesAtATime)
     {
-      merge::Image image = merge::readTiff(options.frames[i]);
-      if (static_cast<int>(i) == alignment.reference)
+      const int batch = std::min(kFramesAtATime, count - first);
+      std::vector<merge::Layers> layers(batch);
+      merge::parallelFor(batch, [&](int k) {
+        const int i = first + k;
+        layers[k] = merge::PyramidFusion::split(merge::toReference(images[i].rgb, alignment, i));
+        images[i].rgb.release();  // Split: its memory goes back.
+      });
+      for (merge::Layers& frame : layers)
       {
-        icc = image.icc;
+        fusion.add(std::move(frame));
       }
-      fusion.add(merge::toReference(image.rgb, alignment, static_cast<int>(i)));
     }
     merge::writeTiff(options.output, rotated(fusion.result(), options.rotation), icc);
     std::cout << "Merged into " << options.output << " in " << secondsSince(start) << " s\n";

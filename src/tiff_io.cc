@@ -62,7 +62,7 @@ Image readTiff(const std::string& path)
   }
 
   Image image;
-  rgb16.convertTo(image.rgb, CV_32FC3, 1.0 / 65535.0);
+  image.rgb = rgb16;
   uint32_t icc_size = 0;
   void* icc_data = nullptr;
   if (TIFFGetField(tif.get(), TIFFTAG_ICCPROFILE, &icc_size, &icc_data) && icc_size > 0)

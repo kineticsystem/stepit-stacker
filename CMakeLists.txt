@@ -9,6 +9,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(OpenCV REQUIRED COMPONENTS core imgproc video)
+find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBTIFF REQUIRED IMPORTED_TARGET libtiff-4)
 
@@ -16,4 +17,4 @@ pkg_check_modules(LIBTIFF REQUIRED IMPORTED_TARGET libtiff-4)
 # see docs/ARCHITECTURE.md.
 add_executable(focus-merge src/main.cc src/tiff_io.cc src/align.cc src/fuse.cc)
 target_compile_options(focus-merge PRIVATE -Wall -Wextra)
-target_link_libraries(focus-merge PRIVATE ${OpenCV_LIBS} PkgConfig::LIBTIFF)
+target_link_libraries(focus-merge PRIVATE ${OpenCV_LIBS} PkgConfig::LIBTIFF Threads::Threads)

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace merge
 {
@@ -52,33 +53,38 @@ cv::Mat detailEnergy(const cv::Mat& detail)
 
 }  // namespace
 
-void PyramidFusion::add(const cv::Mat& rgb)
+Layers PyramidFusion::split(const cv::Mat& rgb)
 {
   CV_Assert(rgb.type() == CV_32FC3);
-  std::vector<cv::Mat> pyramid =
-      laplacianPyramid(rgb, count_ == 0 ? levelsFor(rgb.size()) : static_cast<int>(detail_.size()));
-  cv::Mat residual = pyramid.back();
-  pyramid.pop_back();
+  Layers layers;
+  layers.detail = laplacianPyramid(rgb, levelsFor(rgb.size()));
+  layers.residual = layers.detail.back();
+  layers.detail.pop_back();
+  for (const cv::Mat& detail : layers.detail)
+  {
+    layers.energy.push_back(detailEnergy(detail));
+  }
+  return layers;
+}
 
+void PyramidFusion::add(Layers layers)
+{
   if (count_ == 0)
   {
-    detail_ = pyramid;
-    for (const cv::Mat& detail : detail_)
-    {
-      energy_.push_back(detailEnergy(detail));
-    }
-    residual_sum_ = residual.clone();
+    detail_ = std::move(layers.detail);
+    energy_ = std::move(layers.energy);
+    residual_sum_ = layers.residual.clone();
   }
   else
   {
+    CV_Assert(layers.detail.size() == detail_.size());
     for (size_t level = 0; level < detail_.size(); ++level)
     {
-      const cv::Mat energy = detailEnergy(pyramid[level]);
-      const cv::Mat sharper = energy > energy_[level];
-      pyramid[level].copyTo(detail_[level], sharper);
-      energy.copyTo(energy_[level], sharper);
+      const cv::Mat sharper = layers.energy[level] > energy_[level];
+      layers.detail[level].copyTo(detail_[level], sharper);
+      layers.energy[level].copyTo(energy_[level], sharper);
     }
-    residual_sum_ += residual;
+    residual_sum_ += layers.residual;
   }
   ++count_;
 }

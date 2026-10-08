@@ -15,8 +15,11 @@
 namespace merge
 {
 
+// The frame, CV_16UC3 as read, in floats from 0 to 1, CV_32FC3.
+cv::Mat toFloat(const cv::Mat& rgb16);
+
 // The small grayscale image a frame is aligned with: its linear luminance at
-// half the size, CV_32F.
+// half the size, CV_32F. Takes the frame as toFloat() gives it.
 cv::Mat alignmentImage(const cv::Mat& rgb);
 
 struct Alignment
@@ -34,7 +37,8 @@ struct Alignment
 // Throws std::runtime_error, naming the frame, when one cannot be aligned.
 Alignment alignStack(const std::vector<cv::Mat>& images);
 
-// The frame as the reference sees it: same size, same framing, same brightness.
-cv::Mat toReference(const cv::Mat& rgb, const Alignment& alignment, int frame);
+// The frame, CV_16UC3 as read, as the reference sees it: same size, same
+// framing, same brightness, in floats, CV_32FC3.
+cv::Mat toReference(const cv::Mat& rgb16, const Alignment& alignment, int frame);
 
 }  // namespace merge
