@@ -81,10 +81,13 @@ class WatcherTest(unittest.TestCase):
         while not self.watcher.queue.empty():
             kind, folder = self.watcher.queue.get()
             show = self.watcher.queued.pop((kind, folder))
-            if kind == watch.SESSION:
-                self.watcher.handle_session(folder, show)
-            else:
-                self.watcher.handle_angle(folder)
+            try:
+                if kind == watch.SESSION:
+                    self.watcher.handle_session(folder, show)
+                else:
+                    self.watcher.handle_angle(folder)
+            except Exception:  # noqa: BLE001 - as the worker
+                self.watcher.fail(kind, folder)
 
     def test_processes_each_announced_angle_and_shows_the_session_once_all_are_done(self):
         for angle in ANGLES:
@@ -167,6 +170,36 @@ class WatcherTest(unittest.TestCase):
         self.assertTrue((raw / ALL_STACKS_FILE).exists())
         self.assertEqual([angle.name for angle in Session(raw.parent).angles()], ANGLES)
         self.assertTrue((raw.parent / "3_graded" / f"{ANGLES[0]}.tif").exists())
+
+    def test_catching_up_every_minute_shows_a_session_whose_announcement_was_lost(self):
+        self.watcher.catch_up()
+        for angle in ANGLES:
+            self.rig.shoot(SESSION, angle)
+        self.rig.finish(SESSION, ANGLES)
+        self.watcher.catch_up(periodic=True)
+        self.run_queue()
+        self.assertEqual(self.processed, [f"{SESSION}/{angle}" for angle in ANGLES])
+        self.assertEqual(self.finished, [(SESSION, True)])
+
+    def test_catching_up_every_minute_leaves_a_failed_angle_alone_until_the_next_connection(self):
+        self.rig.shoot(SESSION, ANGLES[0])
+        with mock.patch.object(watch, "process_angle", side_effect=RuntimeError("cannot be aligned")), \
+                self.assertLogs(watch.log, "ERROR"):
+            self.watcher.catch_up()
+            self.run_queue()
+        self.watcher.catch_up(periodic=True)
+        self.assertTrue(self.watcher.queue.empty())
+        self.watcher.catch_up()  # A new connection.
+        self.run_queue()
+        self.assertEqual(self.processed, [f"{SESSION}/{ANGLES[0]}"])
+
+    def test_says_once_that_the_rig_does_not_answer(self):
+        with mock.patch.object(self.rig, "finished", side_effect=OSError("no route to host")), \
+                self.assertLogs(watch.log) as logs:
+            self.watcher.catch_up(periodic=True)
+            self.watcher.catch_up(periodic=True)
+            self.watcher.catch_up(periodic=True)
+        self.assertEqual(sum("Cannot list" in line for line in logs.output), 1)
 
 
 if __name__ == "__main__":
