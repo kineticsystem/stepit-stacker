@@ -49,7 +49,7 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 | `rig.port` | `9090` | The commander's rosbridge, where the rig announces each finished angle. |
 | `rig.pictures` | `stepit-macro/pictures` | The rig's pictures folder, relative to the user's home on the rig. |
 | `pictures.mirror` | `pictures` | Where the rig's pictures are copied and every image of a session is saved: relative to the repo, or absolute. Git ignores `pictures`. |
-| `images.rotate` | `0` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. |
+| `images.rotate` | `90` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. On the rig, the stage's turn moves the subject up and down in the sensor's picture, and the Portrait shows its views from side to side: 90 makes the turn sideways. |
 | `quilt.reverse` | `false` | The views go from the last angle to the first, right for the rig's stage. Set it to `true` if the depth on the Portrait looks inside out. |
 
 The other settings of `[quilt]` are those of the Portrait. Two darktable files in `config/` set how the images are developed and graded:
@@ -164,6 +164,8 @@ The repo is mounted at `~/ws`, with `~/ws/bin` and `~/ws/build` on the `PATH`. `
 **`Cannot show the quilt on the Looking Glass`.** The quilt is saved but not shown. `no desktop`: start the pipeline from the desktop's login. `StepIt Holo is missing`: run `git submodule update --init`. `stepit-holo stopped`, followed by StepIt Holo's own message, e.g. `no Looking Glass found` or `No monitor of 1536 x 2048`: see its [Troubleshooting](modules/stepit-holo/README.md#troubleshooting). Show the quilt again with `./bin/pipeline.sh quilt <session>`.
 
 **The Portrait shows a grid of small images, or a blur of many views.** The hologram does not cover the Portrait exactly. `/tmp/stepit-display/viewer.log` in the container holds StepIt Holo's output, and its [Troubleshooting](modules/stepit-holo/README.md#troubleshooting) says what to check.
+
+**The Portrait shows a moving picture, not depth, as the head moves sideways.** The views move up and down instead of sideways: the stage's turn is not horizontal in the images. Set `images.rotate` to 90 or 270, then process the session again. If the depth then looks inside out, use the other of the two.
 
 **The images are turned the wrong way.** Set `images.rotate`. The camera's own orientation is ignored, see [Develop](docs/ARCHITECTURE.md#1-develop).
 

@@ -13,9 +13,11 @@ pictures = "stepit-macro/pictures"  # Relative to the user's home on the rig.
 mirror = "pictures"
 
 # Every merged image is turned clockwise by this many degrees, 0, 90, 180 or
-# 270: 0 keeps it as the sensor sees it, landscape.
+# 270: 0 keeps it as the sensor sees it, landscape. On the rig, the stage's
+# turn moves the subject up and down in the sensor's picture; the Portrait
+# shows its views from side to side, so the images are turned by 90.
 [images]
-rotate = 0
+rotate = 90
 
 # The quilt for the Looking Glass Portrait: 8 x 6 views of 420 x 560 pixels.
 # The views go from the last angle of the session to the first, which is right
