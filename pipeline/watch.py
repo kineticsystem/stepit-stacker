@@ -37,7 +37,8 @@ class Watcher:
         self.lock = threading.Lock()
 
     def enqueue(self, kind, folder, reason, show=False):
-        if not valid_folder(folder) or (kind == SESSION and "/" in folder):
+        # A session is one folder of the rig's pictures folder, an angle one folder in a session.
+        if not valid_folder(folder) or folder.count("/") != (1 if kind == ANGLE else 0):
             log.warning("Ignoring a %s with an unexpected name: %r", kind, folder)
             return
         key = (kind, folder)
@@ -64,9 +65,15 @@ class Watcher:
         for name in unfinished:
             self.enqueue(SESSION, name, "catching up")
 
+    def session_and_angle(self, folder):
+        """The session of an angle of the rig, relative to its pictures folder, and the angle's folder in the mirror."""
+        name, angle = folder.split("/", 1)
+        session = Session(self.config.mirror / name)
+        return session, session.angle(angle)
+
     def graded(self, folder):
-        angle = self.config.mirror / folder
-        return Session(angle.parent).graded(angle).exists()
+        session, angle = self.session_and_angle(folder)
+        return session.graded(angle).exists()
 
     def quilted(self, name):
         return Session(self.config.mirror / name).quilt(self.config.quilt).exists()
@@ -83,8 +90,7 @@ class Watcher:
     def handle_angle(self, folder):
         if self.rig.copy(folder) is None:
             return
-        angle = self.config.mirror / folder
-        session = Session(angle.parent)
+        session, angle = self.session_and_angle(folder)
         if session.is_processed(angle):
             log.info("%s is processed already", folder)
         else:

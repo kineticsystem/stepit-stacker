@@ -16,7 +16,7 @@ from pathlib import Path
 
 import websocket
 
-from .layout import ALL_STACKS_FILE, STACK_FILE
+from .layout import ALL_STACKS_FILE, STACK_FILE, mirrored
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class Rig:
 
     def copy(self, folder):
         """Copies an angle into the mirror, and returns its stack.json; None if it is incomplete."""
-        local = self.config.mirror / folder
+        local = mirrored(self.config.mirror, folder)
         local.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             ["rsync", "-a", "--partial", "-e", "ssh -o BatchMode=yes",
@@ -74,7 +74,7 @@ class Rig:
 
     def copy_all_stacks(self, session):
         """Copies the all_stacks.json of a session into the mirror, and returns it."""
-        local = self.config.mirror / session
+        local = mirrored(self.config.mirror, session)
         local.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             ["rsync", "-a", "-e", "ssh -o BatchMode=yes",
