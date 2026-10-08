@@ -81,13 +81,14 @@ An angle of 3 frames takes about 20 seconds on this PC, the quilt about 10 secon
 ./bin/pipeline.sh session pictures/2026-10-07_12-29-19
 ```
 
-A session is a folder with one folder of raw frames per angle, named so that they sort in the order of the angles, as the rig names them:
+A session is a folder whose `1_session` holds one folder of raw frames per angle, named so that they sort in the order of the angles, as the rig names them:
 
 ```
 2026-10-07_12-29-19/
-├── angle_01_-8.0deg/IMG_5460.CR2 ...
-├── angle_02_-7.5deg/IMG_5465.CR2 ...
-...
+└── 1_session/
+    ├── angle_01_-8.0deg/IMG_5460.CR2 ...
+    ├── angle_02_-7.5deg/IMG_5465.CR2 ...
+    ...
 ```
 
 Angles already processed are skipped, so `session` also finishes a session that was cut short.
@@ -106,14 +107,18 @@ To start every later session from this grading, copy that `grade.xmp` over `conf
 
 ### The Files of a Session
 
+The folders are numbered in the order the pipeline makes them:
+
 ```
 pictures/2026-10-07_12-29-19/
-├── angle_01_-8.0deg/                the raw frames, copied from the rig, and stack.json
-├── ...
-├── merged/angle_01_-8.0deg.tif      16-bit, linear Rec.2020: the master, for grading again
-├── graded/angle_01_-8.0deg.tif      16-bit, sRGB: the sequence
-├── quilt/2026-10-07_12-29-19_qs8x6a0.75.png
-└── grade.xmp                        the session's own grading, after ./bin/pipeline.sh edit
+├── 1_session/                         the rig's folder of the session, copied as it is
+│   ├── angle_01_-8.0deg/              the raw frames of an angle, and stack.json
+│   ├── ...
+│   └── all_stacks.json                once the rig has shot every angle
+├── 2_merged/angle_01_-8.0deg.tif      16-bit, linear Rec.2020: the master, for grading again
+├── 3_graded/angle_01_-8.0deg.tif      16-bit, sRGB: the sequence
+├── 4_quilt/2026-10-07_12-29-19_qs8x6a0.75.png
+└── grade.xmp                          the session's own grading, after ./bin/pipeline.sh edit
 ```
 
 ## Commands

@@ -278,7 +278,7 @@ sequenceDiagram
         Rosbridge->>Watcher: publish, JSON
         Note over Rig,Watcher: rsync copies the folder, over ssh
         Watcher->>Steps: the angle
-        Steps-->>Watcher: graded/angle.tif
+        Steps-->>Watcher: 3_graded/angle.tif
     end
     Note over Rig: last angle done,<br/>writes all_stacks.json
     Rig->>Rosbridge: all_stacks_done, the session's folder
@@ -289,7 +289,7 @@ sequenceDiagram
 
 The watcher opens the WebSocket and subscribes to `/focus_stack/stack_done` and `/focus_stack/all_stacks_done`; rosbridge then pushes every message as it is published. The rig never needs the address of this computer: to it, the watcher is one more subscriber, as the pages of StepIt UI are. The watcher pings every 20 seconds, which finds a rig that went away without closing the connection, and connects again every 10 seconds.
 
-One worker takes the angles and the sessions from a queue, one at a time, in the order they come. For each angle, it copies the folder with `rsync -a --partial` into the mirror, checks that every file `stack.json` lists has arrived, and runs steps 1 to 3, unless the angle has a graded image newer than its frames and its `stack.json`. One angle that fails is logged with its error, and the worker goes on with the next.
+One worker takes the angles and the sessions from a queue, one at a time, in the order they come. For each angle, it copies the folder with `rsync -a --partial` into the mirror, under the session's `1_session`, checks that every file `stack.json` lists has arrived, and runs steps 1 to 3, unless the angle has a graded image newer than its frames and its `stack.json`. One angle that fails is logged with its error, and the worker goes on with the next.
 
 A folder name from the rig must match `[A-Za-z0-9_+.-]` and `/`, without `..`, before it reaches a command: rsync and ssh pass it to the shell of the rig.
 
@@ -299,7 +299,7 @@ A message published while the watcher is not connected is lost: a topic is a liv
 
 ### A Complete Session
 
-The rig says when a session is complete, on `/focus_stack/all_stacks_done`. For each session, the worker copies its `all_stacks.json` into the mirror, processes each angle it lists that has no graded image here yet, e.g. one whose announcement was lost with the connection, then builds the quilt of the graded images. An angle that failed is left out of the quilt, with a warning.
+The rig says when a session is complete, on `/focus_stack/all_stacks_done`. For each session, the worker copies its `all_stacks.json` into the session's `1_session`, processes each angle it lists that has no graded image here yet, e.g. one whose announcement was lost with the connection, then builds the quilt of the graded images. An angle that failed is left out of the quilt, with a warning.
 
 A session the rig announces is shown on the Portrait. A session found by the catch-up only gets its quilt, unless the rig announces it too: shown one after the other, the old sessions would end with the oldest on the Portrait rather than the latest. As the topic is latched, a watcher started after a session shows that session once it has checked its angles; and at every connection it shows the latest session again.
 
@@ -326,7 +326,7 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 |---|---|
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
-| [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, and a name that is not a session is ignored. |
+| [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: the rig's session is copied into `1_session`, each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, and a name that is not a session is ignored. |
 
 Checked by hand, to repeat after a change to each part:
 
@@ -343,7 +343,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **Change how every frame is developed.** Open a CR2 in darktable, set the modules, and save the sidecar it writes, `<file>.CR2.xmp`, over `config/develop.xmp`, without comments. Keep the frames linear: no exposure, no tone curve, no sharpening, see [Develop](#1-develop).
 
-**Add a step to each angle, e.g. a depth map.** Add it to `process_angle()` in [`process.py`](../pipeline/process.py), after the merge or the grading, and its file to [`layout.py`](../pipeline/layout.py).
+**Add a step to each angle, e.g. a depth map.** Add it to `process_angle()` in [`process.py`](../pipeline/process.py), after the merge or the grading, and its file to [`layout.py`](../pipeline/layout.py), in a folder numbered after the one of the step before, e.g. `3_depth` between `2_merged` and the grading, which becomes `4_graded`.
 
 **Show the session another way.** Replace `display.show()`, which `finish_session()` calls with the quilt.
 

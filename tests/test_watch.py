@@ -8,7 +8,7 @@ from unittest import mock
 
 from pipeline import watch
 from pipeline.config import Config, Quilt
-from pipeline.layout import ALL_STACKS_FILE, STACK_FILE, Session
+from pipeline.layout import ALL_STACKS_FILE, STACK_FILE, Session, mirrored
 
 SESSION = "2026-10-07_12-29-19"
 ANGLES = ["angle_01_-1.0deg", "angle_02_1.0deg"]
@@ -36,14 +36,14 @@ class FakeRig:
         return angles, sessions
 
     def copy(self, folder):
-        source, local = self.folder / folder, self.mirror / folder
+        source, local = self.folder / folder, mirrored(self.mirror, folder)
         local.mkdir(parents=True, exist_ok=True)
         for path in source.iterdir():
             (local / path.name).write_bytes(path.read_bytes())
         return json.loads((local / STACK_FILE).read_text())
 
     def copy_all_stacks(self, session):
-        local = self.mirror / session
+        local = mirrored(self.mirror, session)
         local.mkdir(parents=True, exist_ok=True)
         (local / ALL_STACKS_FILE).write_bytes((self.folder / session / ALL_STACKS_FILE).read_bytes())
         return json.loads((local / ALL_STACKS_FILE).read_text())
@@ -131,7 +131,7 @@ class WatcherTest(unittest.TestCase):
         session = Session(self.watcher.config.mirror / SESSION)
         for angle in ANGLES:
             self.rig.copy(f"{SESSION}/{angle}")
-            grade(session, session.folder / angle, None)
+            grade(session, session.angle(angle), None)
         quilt = session.quilt(self.watcher.config.quilt)
         quilt.parent.mkdir()
         quilt.write_bytes(b"quilt")
@@ -153,7 +153,20 @@ class WatcherTest(unittest.TestCase):
     def test_ignores_a_session_with_an_unexpected_name(self):
         self.watcher.on_all_stacks_done("a/b")
         self.watcher.on_all_stacks_done("../x")
+        self.watcher.on_stack_done(SESSION)
+        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[0]}/x")
         self.assertTrue(self.watcher.queue.empty())
+
+    def test_copies_the_rigs_session_into_1_session(self):
+        for angle in ANGLES:
+            self.rig.shoot(SESSION, angle)
+        self.rig.finish(SESSION, ANGLES)
+        self.watcher.on_all_stacks_done(SESSION)
+        self.run_queue()
+        raw = self.watcher.config.mirror / SESSION / "1_session"
+        self.assertTrue((raw / ALL_STACKS_FILE).exists())
+        self.assertEqual([angle.name for angle in Session(raw.parent).angles()], ANGLES)
+        self.assertTrue((raw.parent / "3_graded" / f"{ANGLES[0]}.tif").exists())
 
 
 if __name__ == "__main__":
