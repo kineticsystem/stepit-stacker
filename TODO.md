@@ -77,7 +77,7 @@ darktable's hot pixels module repairs them with its default threshold and streng
 
 ### 7. A Failed Angle Is Retried Only at the Next Connection
 
-The watcher catches up on the angles without a graded image only when it connects to the rig. An angle that failed stays without an image until the watcher reconnects or restarts, and then fails again the same way. Once item 5 gives a way to merge it, the watcher could retry it after the other angles of the session.
+The watcher catches up on the angles without a graded image when it connects to the rig, and every minute, but the catch-up every minute leaves alone what failed. An angle that failed stays without an image until the watcher reconnects or restarts, and then fails again the same way. Once item 5 gives a way to merge it, the watcher could retry it after the other angles of the session.
 
 ### 8. The Mirror Only Grows
 

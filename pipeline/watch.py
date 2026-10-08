@@ -8,13 +8,16 @@ graded image here yet, then builds the quilt and shows it.
 At every connection it also catches up: it processes every angle of the rig
 that has a stack.json and no graded image here yet, e.g. angles shot while
 this computer was off, then builds the quilt of every session that has an
-all_stacks.json and no quilt here yet, without showing it. Angles and sessions
-are processed one at a time, in the order they come.
+all_stacks.json and no quilt here yet, without showing it. It catches up again
+every minute, for an announcement that was lost, and shows a session it finds
+then: it was finished while the watcher ran. Angles and sessions are processed
+one at a time, in the order they come.
 """
 
 import logging
 import queue
 import threading
+import time
 
 from .layout import Session
 from .process import finish_session, process_angle
@@ -24,6 +27,7 @@ log = logging.getLogger(__name__)
 
 ANGLE = "angle"
 SESSION = "session"
+CATCH_UP_EVERY = 60  # Seconds.
 
 
 class Watcher:
@@ -34,6 +38,10 @@ class Watcher:
         # What waits in the queue, (kind, folder), with whether to show it: a
         # session queued by the catch-up is shown if the rig announces it too.
         self.queued = {}
+        # The angles and sessions that failed since the last connection: catching up every minute
+        # leaves them alone, rather than merge an angle that cannot be aligned again and again.
+        self.failed = set()
+        self.reachable = True
         self.lock = threading.Lock()
 
     def enqueue(self, kind, folder, reason, show=False):
@@ -50,20 +58,48 @@ class Watcher:
         log.info("Queued the %s %s (%s)", kind, folder, reason)
         self.queue.put(key)
 
-    def catch_up(self):
+    def catch_up(self, periodic=False):
+        """Queues the rig's finished angles and sessions that have no image or quilt here.
+
+        At a connection, it retries what failed, and does not show the sessions: they are old, and
+        shown one after the other, the oldest would end up on the Portrait. Every minute after, it
+        leaves what failed alone, shows the sessions, finished while the watcher ran, and logs only
+        what it finds."""
         try:
             angles, sessions = self.rig.finished()
         except Exception as error:  # noqa: BLE001
-            log.error("Cannot list the finished stacks of the rig: %s", getattr(error, "stderr", "") or error)
+            # Once, not every minute while the rig is off.
+            if self.reachable or not periodic:
+                log.error("Cannot list the finished stacks of the rig: %s", getattr(error, "stderr", "") or error)
+            self.reachable = False
             return
-        pending = [folder for folder in angles if not self.graded(folder)]
-        log.info("The rig has %d finished angles, %d not processed here yet", len(angles), len(pending))
+        if not self.reachable:
+            log.info("The rig answers again")
+        self.reachable = True
+        with self.lock:
+            if not periodic:
+                self.failed.clear()
+            failed = set(self.failed)
+        pending = [folder for folder in angles if not self.graded(folder) and (ANGLE, folder) not in failed]
+        unfinished = [name for name in sessions if not self.quilted(name) and (SESSION, name) not in failed]
+        if not periodic:
+            log.info("The rig has %d finished angles, %d not processed here yet", len(angles), len(pending))
+            log.info("The rig has %d finished sessions, %d without a quilt here yet", len(sessions), len(unfinished))
+        reason = "found in the last minute" if periodic else "catching up"
         for folder in pending:
-            self.enqueue(ANGLE, folder, "catching up")
-        unfinished = [name for name in sessions if not self.quilted(name)]
-        log.info("The rig has %d finished sessions, %d without a quilt here yet", len(sessions), len(unfinished))
+            self.enqueue(ANGLE, folder, reason)
         for name in unfinished:
-            self.enqueue(SESSION, name, "catching up")
+            self.enqueue(SESSION, name, reason, show=periodic)
+
+    def keep_catching_up(self):
+        while True:
+            time.sleep(CATCH_UP_EVERY)
+            self.catch_up(periodic=True)
+
+    def fail(self, kind, folder):
+        log.exception("Processing %s failed", folder)
+        with self.lock:
+            self.failed.add((kind, folder))
 
     def session_and_angle(self, folder):
         """The session of an angle of the rig, relative to its pictures folder, and the angle's folder in the mirror."""
@@ -107,7 +143,7 @@ class Watcher:
                 try:
                     self.handle_angle(folder)
                 except Exception:  # noqa: BLE001 - one bad angle must not stop the others
-                    log.exception("Processing %s failed", folder)
+                    self.fail(ANGLE, folder)
         log.info("%s is complete", name)
         finish_session(Session(self.config.mirror / name), self.config, show)
 
@@ -125,8 +161,9 @@ class Watcher:
                 else:
                     self.handle_angle(folder)
             except Exception:  # noqa: BLE001 - one bad angle or session must not stop the others
-                log.exception("Processing %s failed", folder)
+                self.fail(kind, folder)
 
     def run(self):
         threading.Thread(target=self.work, daemon=True).start()
+        threading.Thread(target=self.keep_catching_up, daemon=True).start()
         self.rig.listen(self.on_connect, self.on_stack_done, self.on_all_stacks_done)
