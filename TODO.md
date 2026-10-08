@@ -93,8 +93,8 @@ The mirror keeps every raw file, about 300 MB per angle, and each angle adds a m
 
 ### 9. Tests of the Watcher and the Display
 
-`./bin/pipeline.sh test` tests `focus-merge` and the quilt. Worth having:
+`./bin/pipeline.sh test` tests `focus-merge`, the quilt and the watcher, against a fake rig. Worth having:
 
-- A test of the watcher: a fake rig, a folder with a stand-in `ssh` and `rsync`, and the topics through a rosbridge, as a script.
+- A test of the watcher's link to the rig: `test_watch.py` replaces the rig with a fake one, so the `ssh` and `rsync` commands and the WebSocket are untested. A folder with a stand-in `ssh` and `rsync`, and the topics through a rosbridge, as a script.
 - A test of the development and the grading on a real CR2 of the rig, in the repo.
 - A GitHub Actions workflow that builds the image and runs them.

@@ -24,7 +24,7 @@
 
 This document explains how StepIt Stacker is built, what each part is responsible for, and where to start when we want to change something. It assumes we have read the [README](../README.md).
 
-It follows one idea: **the rig only shoots, and says when an angle is complete; everything else happens on this computer**. The rig, [StepIt Macro](https://github.com/kineticsystem/stepit-macro), knows nothing about StepIt Stacker: it publishes facts about its own pictures, and StepIt Stacker reads them, copies the pictures and processes them here.
+It follows one idea: **the rig only shoots, and says when an angle and a session are complete; everything else happens on this computer**. The rig, [StepIt Macro](https://github.com/kineticsystem/stepit-macro), knows nothing about StepIt Stacker: it publishes facts about its own pictures, and StepIt Stacker reads them, copies the pictures and processes them here.
 
 ## The Big Picture
 
@@ -88,10 +88,13 @@ config:
 flowchart TB
     subgraph Rig["The rig, stepit.local"]
         StackDone["StackDone<br/>after the last shot of an angle"]
+        AllStacksDone["AllStacksDone<br/>after the last angle"]
         Rosbridge["rosbridge<br/>port 9090"]
-        RigPictures["~/stepit-macro/pictures<br/>CR2 files, stack.json"]
+        RigPictures["~/stepit-macro/pictures<br/>CR2 files, stack.json,<br/>all_stacks.json"]
         StackDone -- "/focus_stack/stack_done" --> Rosbridge
+        AllStacksDone -- "/focus_stack/all_stacks_done" --> Rosbridge
         StackDone -- "writes" --> RigPictures
+        AllStacksDone -- "writes" --> RigPictures
     end
     subgraph PC["This computer, container stepit-pipeline"]
         Watcher["Watcher<br/>pipeline/watch.py"]
@@ -116,9 +119,10 @@ What StepIt Stacker uses of the rig:
 | Name | Type | What it is |
 |---|---|---|
 | `/focus_stack/stack_done` | `std_msgs/String` topic, latched | The folder of an angle whose pictures are all saved, relative to the rig's pictures folder, e.g. `2026-10-07_12-29-19/angle_01_0.0deg`. Published by `StackDone` in the objective `FocusStack`. |
-| `/focus_stack/progress` | `std_msgs/Int32MultiArray` topic, latched | `[pictures taken, pictures in total]` of the whole FocusStack. Equal when the session is complete. |
+| `/focus_stack/all_stacks_done` | `std_msgs/String` topic, latched | The folder of a session whose angles are all done, e.g. `2026-10-07_12-29-19`. Published by `AllStacksDone` in the objective `FocusStack`, after the last angle's `StackDone`. A session that stops halfway is never announced. |
 | `ws://stepit.local:9090` | rosbridge WebSocket | The commander's rosbridge, which StepIt UI also uses. It relays the topics as JSON. |
 | `stack.json` | file in the folder of a finished angle | The shots, the angle and the files of the folder. Written to a temporary file and renamed, so its presence says the angle is complete. |
+| `all_stacks.json` | file in the folder of a finished session | The shots, the angles and, in `stacks`, the folders of the angles. Written the same way, so its presence says the session is complete. |
 | `robot@stepit.local:stepit-macro/pictures` | ssh and rsync | The rig's pictures folder, which StepIt Stacker reads and never writes. |
 
 ## The Parts
@@ -127,7 +131,7 @@ What StepIt Stacker uses of the rig:
 |---|---|
 | [`bin/pipeline.sh`](../bin/pipeline.sh) | Builds and starts the container `stepit-pipeline`, with the screen, the GPU and the USB of the Looking Glass, and runs the commands in it. |
 | [`pipeline/__main__.py`](../pipeline/__main__.py) | The commands: `watch`, `session`, `edit`, `grade`, `quilt`, `show`. |
-| [`pipeline/watch.py`](../pipeline/watch.py) | The watcher: one angle at a time, as the rig announces them, and the quilt once the session is complete. |
+| [`pipeline/watch.py`](../pipeline/watch.py) | The watcher: one angle or session at a time, as the rig announces them: each angle's steps 1 to 3, and each session's quilt. |
 | [`pipeline/rig.py`](../pipeline/rig.py) | The rig: its topics through rosbridge, its pictures through ssh and rsync. |
 | [`pipeline/process.py`](../pipeline/process.py) | The steps chained, for an angle and for a session. |
 | [`pipeline/darktable.py`](../pipeline/darktable.py) | Steps 1 and 3, with `darktable-cli`, and darktable's window for `edit`. |
@@ -263,33 +267,43 @@ config:
     errorTextColor: "#ffffff"
 ---
 sequenceDiagram
-    participant Rig as StackDone
+    participant Rig as FocusStack
     participant Rosbridge as rosbridge
     participant Watcher as Watcher
     participant Steps as Steps 1 to 3
-    Watcher->>Rosbridge: subscribe to stack_done and progress
-    Note over Rig: last picture saved,<br/>writes stack.json
-    Rig->>Rosbridge: the folder
+    Watcher->>Rosbridge: subscribe to stack_done and all_stacks_done
+    loop every angle
+        Note over Rig: last picture saved,<br/>writes stack.json
+        Rig->>Rosbridge: stack_done, the angle's folder
+        Rosbridge->>Watcher: publish, JSON
+        Note over Rig,Watcher: rsync copies the folder, over ssh
+        Watcher->>Steps: the angle
+        Steps-->>Watcher: graded/angle.tif
+    end
+    Note over Rig: last angle done,<br/>writes all_stacks.json
+    Rig->>Rosbridge: all_stacks_done, the session's folder
     Rosbridge->>Watcher: publish, JSON
-    Note over Rig,Watcher: rsync copies the folder, over ssh
-    Watcher->>Steps: the angle
-    Steps-->>Watcher: graded/angle.tif
-    Note over Watcher: session complete?<br/>then quilt and show
+    Note over Rig,Watcher: rsync copies all_stacks.json, over ssh
+    Note over Watcher: quilt and show
 ```
 
-The watcher opens the WebSocket and subscribes to `/focus_stack/stack_done` and `/focus_stack/progress`; rosbridge then pushes every message as it is published. The rig never needs the address of this computer: to it, the watcher is one more subscriber, as the pages of StepIt UI are. The watcher pings every 20 seconds, which finds a rig that went away without closing the connection, and connects again every 10 seconds.
+The watcher opens the WebSocket and subscribes to `/focus_stack/stack_done` and `/focus_stack/all_stacks_done`; rosbridge then pushes every message as it is published. The rig never needs the address of this computer: to it, the watcher is one more subscriber, as the pages of StepIt UI are. The watcher pings every 20 seconds, which finds a rig that went away without closing the connection, and connects again every 10 seconds.
 
-For each angle, the worker copies the folder with `rsync -a --partial` into the mirror, checks that every file `stack.json` lists has arrived, and runs steps 1 to 3, unless the angle has a graded image newer than its frames and its `stack.json`. One angle that fails is logged with its error, and the worker goes on with the next.
+One worker takes the angles and the sessions from a queue, one at a time, in the order they come. For each angle, it copies the folder with `rsync -a --partial` into the mirror, checks that every file `stack.json` lists has arrived, and runs steps 1 to 3, unless the angle has a graded image newer than its frames and its `stack.json`. One angle that fails is logged with its error, and the worker goes on with the next.
 
 A folder name from the rig must match `[A-Za-z0-9_+.-]` and `/`, without `..`, before it reaches a command: rsync and ssh pass it to the shell of the rig.
 
 ### Catching Up
 
-A message published while the watcher is not connected is lost: a topic is a live push, not a queue. So at every connection, the watcher asks the rig over ssh for every `stack.json`, and queues each angle that has no graded image here yet. That is what makes `stack.json` necessary: without it, the files could not tell a finished angle from one in progress. An angle can be queued twice, by the catch-up and by the latched topic: the queue ignores an angle already in it.
+A message published while the watcher is not connected is lost: a topic is a live push, not a queue, and a latched topic only gives its last message. So at every connection, the watcher asks the rig over ssh for every `stack.json` and every `all_stacks.json`, with one `find`. It queues each angle that has no graded image here yet, then each session that has no quilt here yet. That is what makes the two files necessary: without them, the files could not tell a finished angle or session from one in progress. An angle or a session can be queued twice, by the catch-up and by the latched topic: the queue ignores one already in it.
 
 ### A Complete Session
 
-After each angle, the watcher builds the quilt and shows it when the session is complete: the rig's progress says every picture of the FocusStack is taken, the angle belongs to the session the rig announced last, and no other angle of it waits in the queue. As both topics are latched, a watcher started after a session shows that session once it has checked its angles.
+The rig says when a session is complete, on `/focus_stack/all_stacks_done`. For each session, the worker copies its `all_stacks.json` into the mirror, processes each angle it lists that has no graded image here yet, e.g. one whose announcement was lost with the connection, then builds the quilt of the graded images. An angle that failed is left out of the quilt, with a warning.
+
+A session the rig announces is shown on the Portrait. A session found by the catch-up only gets its quilt, unless the rig announces it too: shown one after the other, the old sessions would end with the oldest on the Portrait rather than the latest. As the topic is latched, a watcher started after a session shows that session once it has checked its angles; and at every connection it shows the latest session again.
+
+A session that stops halfway, e.g. at a shot whose picture did not come, gets no `all_stacks.json` and no quilt: its finished angles are processed, and `./bin/pipeline.sh session` builds its quilt by hand. So does a session shot before the rig had `AllStacksDone`.
 
 ## The Containers
 
@@ -312,6 +326,7 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 |---|---|
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
+| [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, and a name that is not a session is ignored. |
 
 Checked by hand, to repeat after a change to each part:
 
@@ -319,10 +334,10 @@ Checked by hand, to repeat after a change to each part:
 |---|---|
 | Develop | The developed frame is linear: its brightest pixels well below 65535, its ICC profile "Linear Rec2020 RGB". |
 | Grade | `./bin/pipeline.sh edit` on a session: darktable opens with the current grading, and closing it grades every angle. |
-| The watcher | Start it, shoot a FocusStack, follow `./bin/pipeline.sh logs`: each angle is queued as `announced by the rig`, processed, and the quilt is shown at the end. Stop it during a session and start it again: the missing angles are queued as `catching up`. |
+| The watcher | Start it, shoot a FocusStack, follow `./bin/pipeline.sh logs`: each angle is queued as `announced by the rig`, processed, then the session, and the quilt is shown at the end. Stop it during a session and start it again: the missing angles are queued as `catching up`. The ssh and rsync commands and the WebSocket have no automated test. |
 | Show | `./bin/pipeline.sh show <quilt.png>` with the Portrait attached. |
 
-The rig's side, `StackDone` and its `stack.json`, is tested in StepIt Macro, against its fake camera.
+The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepIt Macro, against its fake camera.
 
 ## How to Extend StepIt Stacker
 
