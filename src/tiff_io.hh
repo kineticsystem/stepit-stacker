@@ -14,7 +14,7 @@ namespace merge
 
 struct Image
 {
-  cv::Mat rgb;               // CV_32FC3, channels R, G, B, values from 0 to 1.
+  cv::Mat rgb;               // CV_16UC3, channels R, G, B, as in the file: half the memory of floats.
   std::vector<uint8_t> icc;  // The ICC profile of the file; empty if it has none.
 };
 

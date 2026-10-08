@@ -8,8 +8,10 @@
 // the overall brightness, are averaged. Rebuilding the image from the merged
 // pyramid blends the frames without visible seams.
 //
-// Frames are added one at a time, so the memory stays that of two pyramids
-// whatever the number of frames.
+// Splitting a frame into its pyramid is the slow part, and frames can be split
+// at the same time, with split(); they are then added one at a time, in the
+// order they were shot, so the memory stays that of the pyramids being split
+// and the merged one, whatever the number of frames.
 
 #pragma once
 
@@ -20,11 +22,25 @@
 namespace merge
 {
 
+// A frame split for the fusion: its detail at each scale, how much detail
+// each point of it has, and its residual.
+struct Layers
+{
+  std::vector<cv::Mat> detail;  // CV_32FC3.
+  std::vector<cv::Mat> energy;  // CV_32F.
+  cv::Mat residual;             // CV_32FC3.
+};
+
 class PyramidFusion
 {
 public:
-  // Adds a frame, CV_32FC3. Every frame must have the size of the first.
-  void add(const cv::Mat& rgb);
+  // Splits a frame, CV_32FC3, for add(). It touches no PyramidFusion, so
+  // several frames can be split at the same time.
+  static Layers split(const cv::Mat& rgb);
+  // Adds a split frame. Every frame must have the size of the first.
+  void add(Layers layers);
+  // Splits and adds a frame, CV_32FC3.
+  void add(const cv::Mat& rgb) { add(split(rgb)); }
   // The merged image, CV_32FC3.
   cv::Mat result() const;
 

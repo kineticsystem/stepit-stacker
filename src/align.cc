@@ -8,6 +8,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "parallel.hh"
+
 namespace merge
 {
 
@@ -88,6 +90,14 @@ double magnification(const cv::Mat& m)
 
 }  // namespace
 
+cv::Mat toFloat(const cv::Mat& rgb16)
+{
+  CV_Assert(rgb16.type() == CV_16UC3);
+  cv::Mat rgb;
+  rgb16.convertTo(rgb, CV_32FC3, 1.0 / 65535.0);
+  return rgb;
+}
+
 cv::Mat alignmentImage(const cv::Mat& rgb)
 {
   cv::Mat gray;
@@ -98,22 +108,62 @@ cv::Mat alignmentImage(const cv::Mat& rgb)
 Alignment alignStack(const std::vector<cv::Mat>& images)
 {
   const int count = static_cast<int>(images.size());
-  // to_first[i] maps the pixels of the first frame to those of frame i.
-  std::vector<cv::Mat> to_first(count);
-  to_first[0] = cv::Mat::eye(3, 3, CV_64F);
-  cv::Mat guess = cv::Mat::eye(2, 3, CV_64F);
-  for (int i = 1; i < count; ++i)
+  // pair[i] maps the pixels of frame i - 1 to those of frame i. The first
+  // pair is matched from no movement at all. The rail moves the same way at
+  // every step, so the first pair's transform is a close guess for the others,
+  // which do not depend on one another and are matched at the same time: a
+  // close guess takes a few iterations, no movement many more.
+  std::vector<cv::Mat> pair(count);
+  std::vector<char> failed(count, 0);
+  const cv::Mat none = cv::Mat::eye(2, 3, CV_64F);
+  if (count > 1)
   {
     try
     {
-      guess = matchNeighbours(images[i - 1], images[i], guess);
+      pair[1] = matchNeighbours(images[0], images[1], none);
+    }
+    catch (const cv::Exception&)
+    {
+      failed[1] = 1;
+    }
+  }
+  const cv::Mat first_guess = pair[1].empty() ? none : pair[1];
+  parallelFor(count - 2, [&](int k) {
+    const int i = k + 2;
+    try
+    {
+      pair[i] = matchNeighbours(images[i - 1], images[i], first_guess);
+    }
+    catch (const cv::Exception&)
+    {
+      failed[i] = 1;
+    }
+  });
+  // A pair that did not converge starts again from its neighbour's transform,
+  // as close a guess as there is, one after the other, as they all once were.
+  for (int i = 1; i < count; ++i)
+  {
+    if (!failed[i])
+    {
+      continue;
+    }
+    const cv::Mat& guess = i > 1 && !pair[i - 1].empty() ? pair[i - 1] : none;
+    try
+    {
+      pair[i] = matchNeighbours(images[i - 1], images[i], guess);
     }
     catch (const cv::Exception& e)
     {
       throw std::runtime_error("frame " + std::to_string(i + 1) + " cannot be aligned with frame " + std::to_string(i) +
                                ": " + e.msg);
     }
-    to_first[i] = toMat3x3(guess) * to_first[i - 1];
+  }
+  // to_first[i] maps the pixels of the first frame to those of frame i.
+  std::vector<cv::Mat> to_first(count);
+  to_first[0] = cv::Mat::eye(3, 3, CV_64F);
+  for (int i = 1; i < count; ++i)
+  {
+    to_first[i] = toMat3x3(pair[i]) * to_first[i - 1];
   }
 
   Alignment alignment;
@@ -127,28 +177,29 @@ Alignment alignStack(const std::vector<cv::Mat>& images)
   const cv::Mat reference_inverse = to_first[alignment.reference].inv();
   const cv::Mat& reference = images[alignment.reference];
   const double reference_mean = cv::mean(reference)[0];
-  for (int i = 0; i < count; ++i)
-  {
+  alignment.transforms.resize(count);
+  alignment.gains.resize(count);
+  parallelFor(count, [&](int i) {
     const cv::Mat reference_to_frame = to_first[i] * reference_inverse;
     const cv::Mat small = reference_to_frame.rowRange(0, 2);
-    alignment.transforms.push_back(scaled(small, kAlignmentScale));
+    alignment.transforms[i] = scaled(small, kAlignmentScale);
     // Blur does not change the mean, so frames focused at different depths
     // still compare fairly.
     cv::Mat warped;
     cv::warpAffine(images[i], warped, small, reference.size(), cv::INTER_LINEAR | cv::WARP_INVERSE_MAP,
                    cv::BORDER_REFLECT);
     const double mean = cv::mean(warped)[0];
-    alignment.gains.push_back(mean > 0 ? reference_mean / mean : 1.0);
-  }
+    alignment.gains[i] = mean > 0 ? reference_mean / mean : 1.0;
+  });
   return alignment;
 }
 
-cv::Mat toReference(const cv::Mat& rgb, const Alignment& alignment, int frame)
+cv::Mat toReference(const cv::Mat& rgb16, const Alignment& alignment, int frame)
 {
   const cv::Mat& transform = alignment.transforms[frame];
-  const cv::Size size(rgb.cols, rgb.rows);
+  const cv::Size size(rgb16.cols, rgb16.rows);
   cv::Mat warped;
-  cv::warpAffine(rgb, warped, transform, size, cv::INTER_CUBIC | cv::WARP_INVERSE_MAP, cv::BORDER_REFLECT);
+  cv::warpAffine(toFloat(rgb16), warped, transform, size, cv::INTER_CUBIC | cv::WARP_INVERSE_MAP, cv::BORDER_REFLECT);
   return warped * alignment.gains[frame];
 }
 
