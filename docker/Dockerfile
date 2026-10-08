@@ -45,9 +45,10 @@ RUN apt-get -y install darktable libopencv-dev libtiff-dev python3-opencv python
 # bin/pipeline.sh mounts.
 RUN apt-get -y install python3 python3-websocket rsync openssh-client libnss-mdns
 
-# The display, pipeline/display.py and pipeline/viewer.py: a GTK window on
-# the Looking Glass, which libX11 and libXinerama make full-screen on it.
-RUN apt-get -y install python3-gi gir1.2-gtk-3.0 libx11-6 libxinerama1
+# The display: StepIt Holo, the submodule modules/stepit-holo, which shows a
+# quilt on the Looking Glass with numpy, Pillow and a GTK window, made
+# full-screen on it through libX11 and libXinerama under X11.
+RUN apt-get -y install python3-pil python3-gi gir1.2-gtk-3.0 libx11-6 libxinerama1
 
 CMD ["bash"]
 

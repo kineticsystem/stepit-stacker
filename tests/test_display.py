@@ -1,70 +1,56 @@
-"""Tests the interleaving of a quilt for the Looking Glass Portrait, with the Portrait's calibration."""
+"""Tests how the pipeline runs StepIt Holo to show a quilt: the interleaving itself is tested in modules/stepit-holo."""
 
-import math
+import os
+import tempfile
 import unittest
-from dataclasses import replace
+from pathlib import Path
+from unittest import mock
 
-import numpy as np
-
+from pipeline import display
 from pipeline.config import Quilt
-from pipeline.display import Calibration, interleave
 
-QUILT = Quilt(columns=8, rows=6, view_width=42, view_height=56, reverse=False)
-
-# The calibration of a Looking Glass Portrait, LKG_calibration/visual.json on its drive.
-VISUAL = {
-    "configVersion": "1.0", "serial": "LKG-PORT-00671", "pitch": {"value": 52.58790040712976},
-    "slope": {"value": -7.161397095759771}, "center": {"value": 0.7432299004945404}, "fringe": {"value": 0.0},
-    "viewCone": {"value": 40.0}, "invView": {"value": 1.0}, "verticalAngle": {"value": 0.0},
-    "DPI": {"value": 324.0}, "screenW": {"value": 1536.0}, "screenH": {"value": 2048.0},
-    "flipImageX": {"value": 0.0}, "flipImageY": {"value": 0.0}, "flipSubp": {"value": 0.0},
-}
+QUILT = Quilt(columns=8, rows=6, view_width=420, view_height=560, reverse=False)
 
 
-def coloured_quilt():
-    """A quilt whose view i is filled with the value i + 1 in every channel, view 0 at the bottom left."""
-    image = np.zeros((QUILT.rows * QUILT.view_height, QUILT.columns * QUILT.view_width, 3), np.uint8)
-    for view in range(QUILT.views):
-        row, column = QUILT.rows - 1 - view // QUILT.columns, view % QUILT.columns
-        image[row * QUILT.view_height:(row + 1) * QUILT.view_height,
-              column * QUILT.view_width:(column + 1) * QUILT.view_width] = view + 1
-    return image
+def fake_stepit_holo(folder, main):
+    """A stand-in for StepIt Holo whose `python3 -m stepit_holo` runs `main`."""
+    package = Path(folder, "stepit_holo")
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "__main__.py").write_text(main)
+    return Path(folder)
 
 
 class DisplayTest(unittest.TestCase):
     def setUp(self):
-        self.calibration = Calibration.from_visual(VISUAL)
+        self.enterContext(mock.patch.dict(os.environ, {"DISPLAY": ":0"}))
+        self.addCleanup(display.stop_viewer)
 
-    def test_reads_the_calibration_as_looking_glass_does(self):
-        cal = self.calibration
-        self.assertEqual((cal.width, cal.height), (1536, 2048))
-        self.assertAlmostEqual(cal.pitch, 52.58790040712976 * 1536 / 324 * math.cos(math.atan(1 / -7.161397095759771)))
-        self.assertAlmostEqual(cal.tilt, 2048 / (1536 * -7.161397095759771))
-        self.assertAlmostEqual(cal.subp, 1 / (1536 * 3))
-        self.assertTrue(cal.inverted)
+    def test_runs_stepit_holo_show_with_the_quilts_layout(self):
+        with tempfile.TemporaryDirectory() as folder:
+            holo = fake_stepit_holo(folder, "import sys, time\n"
+                                            "print('Showing', ' '.join(sys.argv[1:]), flush=True)\n"
+                                            "time.sleep(30)\n")
+            display.show(Path(folder, "s_qs8x6a0.75.png"), QUILT, holo)
+            output = display.VIEWER_LOG.read_text()
+            self.assertIn("show", output)
+            self.assertIn("--columns 8 --rows 6", output)
 
-    def test_a_mirrored_screen_slants_the_other_way(self):
-        mirrored = Calibration.from_visual(dict(VISUAL, flipImageX={"value": 1.0}))
-        self.assertAlmostEqual(mirrored.tilt, -self.calibration.tilt)
-        self.assertAlmostEqual(mirrored.subp, -self.calibration.subp)
+    def test_says_why_stepit_holo_stopped(self):
+        with tempfile.TemporaryDirectory() as folder:
+            holo = fake_stepit_holo(folder, "import sys\n"
+                                            "print('stepit-holo: no Looking Glass found', flush=True)\n"
+                                            "sys.exit(1)\n")
+            with self.assertRaisesRegex(RuntimeError, "no Looking Glass found"):
+                display.show(Path(folder, "s_qs8x6a0.75.png"), QUILT, holo)
 
-    def test_fills_the_screen(self):
-        hologram = interleave(coloured_quilt(), QUILT, self.calibration)
-        self.assertEqual(hologram.shape, (2048, 1536, 3))
+    def test_says_when_the_submodule_is_missing(self):
+        with tempfile.TemporaryDirectory() as folder, self.assertRaisesRegex(RuntimeError, "submodule update"):
+            display.show(Path(folder, "s.png"), QUILT, Path(folder, "missing"))
 
-    def test_each_sub_pixel_takes_one_view_and_every_view_is_seen(self):
-        hologram = interleave(coloured_quilt(), QUILT, self.calibration)
-        values = np.unique(hologram)
-        self.assertEqual(values.min(), 1)
-        self.assertEqual(values.max(), QUILT.views)
-        self.assertEqual(len(values), QUILT.views)
-
-    def test_the_inverted_views_go_the_other_way(self):
-        quilt = coloured_quilt()
-        hologram = interleave(quilt, QUILT, self.calibration).astype(int)
-        other = interleave(quilt, QUILT, replace(self.calibration, inverted=False)).astype(int)
-        # Mostly view v for view 47 - v; floor() at a view's edge may give the neighbouring view.
-        self.assertGreater(np.mean(np.abs(hologram - 1 + other - 1 - (QUILT.views - 1)) <= 1), 0.99)
+    def test_needs_a_desktop(self):
+        with mock.patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(RuntimeError, "no desktop"):
+            display.show(Path("s.png"), QUILT)
 
 
 if __name__ == "__main__":

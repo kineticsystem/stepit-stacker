@@ -28,15 +28,16 @@ For each angle, as soon as the rig has shot it:
 Once the rig has shot the whole session:
 
 4. **Quilt.** The graded images become the 48 views of a quilt, the 3D image format of the Looking Glass.
-5. **Show.** The quilt is interleaved for the Portrait, with the Portrait's own calibration, and shown full-screen on it as a hologram.
+5. **Show.** [StepIt Holo](https://github.com/kineticsystem/stepit-holo), a submodule of this repo, shows the quilt full-screen on the Portrait as a hologram, with the Portrait's own calibration.
 
 How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Prerequisites
 
+- **This repo with its submodule,** StepIt Holo, in `modules/stepit-holo`: clone it with `git clone --recurse-submodules`, or run `git submodule update --init` in a checkout made without it.
 - **A PC with Ubuntu and Docker,** see [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/). Everything runs in a Docker image built from this repo, on this PC, not on the rig.
 - **The rig, reachable by ssh** as `robot@stepit.local` with this PC's key, without a password. Check it with `ssh -o BatchMode=yes robot@stepit.local true`.
-- **The Looking Glass Portrait,** on HDMI and on USB-C to this PC, with a cable that carries data: its drive holds its calibration, which the desktop mounts under `/media`. In Ubuntu's display settings, set it as an extended display ("Join Displays"), in portrait orientation. No Looking Glass software is needed.
+- **The Looking Glass Portrait,** on HDMI and on USB-C to this PC, with a cable that carries data: its drive holds its calibration, which the desktop mounts under `/media`. In Ubuntu's display settings, set it as an extended display ("Join Displays"), in portrait orientation. The desktop's scaling may be 100% or a whole factor, e.g. 200% on a 4K monitor, not a fractional one.
 
 ## Configure
 
@@ -160,9 +161,9 @@ The repo is mounted at `~/ws`, with `~/ws/bin` and `~/ws/build` on the `PATH`. `
 
 **`frame N cannot be aligned with frame N-1`.** The alignment found nothing to lock onto: the frames show mostly blank background, or large overexposed areas. That angle gets no image, and the others go on. Frame the subject so it fills more of the picture, or reduce the exposure.
 
-**`Cannot show the quilt on the Looking Glass`.** The quilt is saved but not shown. `no X display`: start the pipeline from the desktop's login. `no Looking Glass: no /media/*/*/LKG_calibration/visual.json`: the Portrait's USB cable is not plugged in, or carries power only; `lsusb` lists `Looking Glass Portrait` once it carries data. `No monitor of 1536 x 2048`: the Portrait is not on HDMI, or not part of the desktop in the display settings. Show the quilt again with `./bin/pipeline.sh quilt <session>`.
+**`Cannot show the quilt on the Looking Glass`.** The quilt is saved but not shown. `no desktop`: start the pipeline from the desktop's login. `StepIt Holo is missing`: run `git submodule update --init`. `stepit-holo stopped`, followed by StepIt Holo's own message, e.g. `no Looking Glass found` or `No monitor of 1536 x 2048`: see its [Troubleshooting](modules/stepit-holo/README.md#troubleshooting). Show the quilt again with `./bin/pipeline.sh quilt <session>`.
 
-**The Portrait shows a grid of small images, or a blur of many views.** The hologram is drawn for another position or size: the viewer's window does not cover the Portrait exactly. `/tmp/stepit-display/viewer.log` in the container says where it went.
+**The Portrait shows a grid of small images, or a blur of many views.** The hologram does not cover the Portrait exactly. `/tmp/stepit-display/viewer.log` in the container holds StepIt Holo's output, and its [Troubleshooting](modules/stepit-holo/README.md#troubleshooting) says what to check.
 
 **The images are turned the wrong way.** Set `images.rotate`. The camera's own orientation is ignored, see [Develop](docs/ARCHITECTURE.md#1-develop).
 
@@ -177,6 +178,4 @@ StepIt Stacker is released under the MIT licence, see [`LICENSE`](LICENSE), and 
 | [darktable](https://www.darktable.org/) | GPL 3 | Develops and grades the images. It runs as a separate program. |
 | [OpenCV](https://opencv.org/) | Apache 2.0 | Aligns and merges the frames, and makes the quilt. |
 | [libtiff](https://libtiff.gitlab.io/libtiff/) | libtiff licence, BSD-like | Reads and writes the 16-bit TIFFs. |
-| [GTK](https://www.gtk.org/) | LGPL 2.1 | Shows the hologram full-screen on the Portrait. |
-
-The hologram is computed with the formula of Looking Glass's lenticular shader, as their [WebXR library](https://github.com/Looking-Glass/looking-glass-webxr) publishes it under the Apache 2.0 licence, and with the calibration read from the Portrait's own drive. No Looking Glass software is used.
+| [StepIt Holo](https://github.com/kineticsystem/stepit-holo) | MIT | Shows the quilt on the Portrait, with numpy, Pillow and GTK, see its own licences. |

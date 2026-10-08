@@ -1,0 +1,3 @@
+[submodule "modules/stepit-holo"]
+	path = modules/stepit-holo
+	url = https://github.com/kineticsystem/stepit-holo.git
