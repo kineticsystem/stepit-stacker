@@ -40,10 +40,10 @@ RUN apt-get -y install clang-format
 RUN apt-get -y install darktable libopencv-dev libtiff-dev python3-opencv python3-numpy
 
 # The watcher, pipeline/watch.py: it follows the rig through its rosbridge,
-# copies each finished angle with rsync over ssh, and resolves the rig's name,
-# e.g. stepit.local, through the host's Avahi daemon, whose socket
-# bin/pipeline.sh mounts.
-RUN apt-get -y install python3 python3-websocket rsync openssh-client libnss-mdns
+# copies each finished angle over HTTP, from StepIt Camera's web server, and
+# resolves the rig's name, e.g. stepit.local, through the host's Avahi daemon,
+# whose socket bin/pipeline.sh mounts.
+RUN apt-get -y install python3 python3-websocket libnss-mdns
 
 # The display: StepIt Holo, the submodule modules/stepit-holo, which shows a
 # quilt on the Looking Glass with numpy, Pillow and a GTK window, made

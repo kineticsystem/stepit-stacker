@@ -1,11 +1,11 @@
 # The settings of the pipeline, see README.md.
 
-# The rig, and its pictures folder.
+# The rig: its rosbridge, which announces the finished angles and sessions, and
+# StepIt Camera's web server, which serves its pictures folder.
 [rig]
 host = "stepit.local"
-user = "robot"                      # The user for ssh and rsync, with this computer's key.
-port = 9090                         # The commander's rosbridge.
-pictures = "stepit-macro/pictures"  # Relative to the user's home on the rig.
+port = 9090            # The commander's rosbridge.
+pictures_port = 8090   # StepIt Camera's web server: /pictures/ on it.
 
 # Where the rig's pictures are copied, and every image of a session is saved:
 # relative to the repo, or an absolute path.

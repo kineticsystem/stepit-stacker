@@ -36,7 +36,7 @@ How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - **This repo with its submodule,** StepIt Holo, in `modules/stepit-holo`: clone it with `git clone --recurse-submodules`, or run `git submodule update --init` in a checkout made without it.
 - **A PC with Ubuntu and Docker,** see [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/). Everything runs in a Docker image built from this repo, on this PC, not on the rig.
-- **The rig, reachable by ssh** as `robot@stepit.local` with this PC's key, without a password. Check it with `ssh -o BatchMode=yes robot@stepit.local true`.
+- **The rig, on the network** as `stepit.local`: its rosbridge on port 9090, and StepIt Camera's web server on port 8090, which serves its pictures. No key or password is needed. Check it with `curl http://stepit.local:8090/pictures/`.
 - **The Looking Glass Portrait,** on HDMI and on USB-C to this PC, with a cable that carries data: its drive holds its calibration, which the desktop mounts under `/media`. In Ubuntu's display settings, set it as an extended display ("Join Displays"), in portrait orientation. The desktop's scaling may be 100% or a whole factor, e.g. 200% on a 4K monitor, not a fractional one.
 
 ## Configure
@@ -45,9 +45,9 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 
 | Setting | Default | What it is |
 |---|---|---|
-| `rig.host`, `rig.user` | `stepit.local`, `robot` | The rig, for ssh and rsync. |
+| `rig.host` | `stepit.local` | The rig. |
 | `rig.port` | `9090` | The commander's rosbridge, where the rig announces each finished angle. |
-| `rig.pictures` | `stepit-macro/pictures` | The rig's pictures folder, relative to the user's home on the rig. |
+| `rig.pictures_port` | `8090` | StepIt Camera's web server on the rig, which serves the rig's pictures folder at `/pictures/`. |
 | `pictures.mirror` | `pictures` | Where the rig's pictures are copied and every image of a session is saved: relative to the repo, or absolute. Git ignores `pictures`. |
 | `images.rotate` | `90` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. On the rig, the stage's turn moves the subject up and down in the sensor's picture, and the Portrait shows its views from side to side: 90 makes the turn sideways. |
 | `quilt.reverse` | `false` | The views go from the last angle to the first, right for the rig's stage. Set it to `true` if the depth on the Portrait looks inside out. |
@@ -157,7 +157,7 @@ The repo is mounted at `~/ws`, with `~/ws/bin` and `~/ws/build` on the `PATH`. `
 
 **`./bin/pipeline.sh logs` shows `Connection to the rig` errors.** The rig is off, or its commander is not running: the pipeline tries again every 10 seconds, and catches up once connected. Check that the page of the rig, on port 8070, opens.
 
-**`Cannot list the finished stacks of the rig`.** ssh to the rig failed. Check the key with `ssh -o BatchMode=yes robot@stepit.local true`.
+**`Cannot list the finished stacks of the rig`.** StepIt Camera's web server did not answer: the rig is off, or its camera's web server is not running. Check it with `curl http://stepit.local:8090/pictures/`. A `404` means a StepIt Camera from before its folder listing: update the rig.
 
 **`frame N cannot be aligned with frame N-1`.** The alignment found nothing to lock onto: the frames show mostly blank background, or large overexposed areas. That angle gets no image, and the others go on. Frame the subject so it fills more of the picture, or reduce the exposure.
 

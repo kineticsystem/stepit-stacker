@@ -89,6 +89,6 @@ The mirror keeps every raw file, about 300 MB per angle, and each angle adds a m
 
 `./bin/pipeline.sh test` tests `focus-merge`, the quilt, how StepIt Holo is run, and the watcher, against a fake rig. Worth having:
 
-- A test of the watcher's link to the rig: `test_watch.py` replaces the rig with a fake one, so the `ssh` and `rsync` commands and the WebSocket are untested. A folder with a stand-in `ssh` and `rsync`, and the topics through a rosbridge, as a script.
+- A test of the watcher's link to the rig's topics: `test_rig.py` tests the copy over HTTP against a stand-in for StepIt Camera's web server, but the WebSocket is untested. The topics through a rosbridge, as a script.
 - A test of the development and the grading on a real CR2 of the rig, in the repo.
 - A GitHub Actions workflow that builds the image and runs them.
