@@ -59,7 +59,7 @@ class WatcherTest(unittest.TestCase):
     def setUp(self):
         folder = Path(self.enterContext(tempfile.TemporaryDirectory()))
         mirror = folder / "mirror"
-        config = Config(rig_host="rig", rig_user="robot", rig_port=9090, rig_pictures="pictures", mirror=mirror,
+        config = Config(rig_host="rig", rig_port=9090, rig_pictures_port=8090, mirror=mirror,
                         rotate=0, quilt=Quilt(columns=8, rows=6, view_width=42, view_height=56, reverse=False))
         self.rig = FakeRig(folder / "rig", mirror)
         self.watcher = watch.Watcher(config)

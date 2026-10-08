@@ -23,12 +23,10 @@ function start() {
     docker run --rm -v "$repo:/home/developer/ws" "$image:latest" build.sh > /dev/null
 
     # The repo where the dev container has it, the home at its own path for the
-    # pictures, the ssh keys for rsync, and the host's Avahi daemon to resolve
-    # the rig's .local name, as for the stacker's watcher.
+    # pictures, and the host's Avahi daemon to resolve the rig's .local name.
     local options=(
         -v "$repo:/home/developer/ws"
         -v "$HOME:$HOME"
-        -v "$HOME/.ssh:/home/developer/.ssh:ro"
         -v /run/avahi-daemon/socket:/run/avahi-daemon/socket
     )
     # The screen, for darktable's window and the hologram on the Looking Glass:
