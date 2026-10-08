@@ -8,7 +8,7 @@ What StepIt Stacker still needs. The goal is a sequence of high-quality images, 
   - [1. Try the Pipeline on the Rig's Stacks](#1-try-the-pipeline-on-the-rigs-stacks)
   - [2. The Light Flickers Between Angles](#2-the-light-flickers-between-angles)
 - [For the 3D Display](#for-the-3d-display)
-  - [3. Try the Portrait](#3-try-the-portrait)
+  - [3. The Portrait on a Computer of Its Own](#3-the-portrait-on-a-computer-of-its-own)
   - [4. Fewer Angles Than Views](#4-fewer-angles-than-views)
 - [Merging](#merging)
   - [5. An Angle Whose Alignment Fails Gets No Image](#5-an-angle-whose-alignment-fails-gets-no-image)
@@ -50,15 +50,9 @@ Options:
 
 ## For the 3D Display
 
-### 3. Try the Portrait
+### 3. The Portrait on a Computer of Its Own
 
-The display was tested without a Portrait: Bridge, in the container, took a quilt and played it. With the Portrait attached, check:
-
-- **Bridge finds the Portrait** from the container: `./bin/pipeline.sh logs` warns `Bridge lists no Looking Glass display` if not. Bridge may need the Portrait's HID device, `/dev/hidraw*`, which only root can open by default: a udev rule on the host, made from the Portrait's USB ids in `lsusb`, gives it to the user. It may also need the Portrait's drive, with `LKG_calibration/visual.json`, which the container sees under `/media`.
-- **Bridge draws on the Portrait** through XWayland, in portrait orientation, at 100% scaling.
-- **The depth** is the right way: the stage turns from right to left, so `quilt.reverse` may be needed.
-
-If Bridge does not work, our own viewer can replace it: a fullscreen window on the Portrait's output, the calibration read from `visual.json`, and the lenticular shader that Looking Glass publishes, [HoloPlayShaders](https://docs.lookingglassfactory.com/core/core-sdk/index-1/holoplayshaders); the [surf-visualization scripts](https://github.com/surf-visualization/looking-glass) already make the native image from a quilt in Python. A few hundred lines of Python and OpenGL, tuned by eye on the display. Check the licence of the shader first.
+The pipeline shows its holograms itself, without Looking Glass's software, so the Portrait can hang off any computer with a screen output, e.g. a Raspberry Pi: no desktop scaling to share with a 4K monitor, and no window that GNOME puts on the wrong monitor. The display would then be a small service on that computer, which the pipeline sends each new quilt, e.g. over HTTP, with `display.py`'s interleaving and a full-screen window, or no desktop at all.
 
 ### 4. Fewer Angles Than Views
 
@@ -93,7 +87,9 @@ The mirror keeps every raw file, about 300 MB per angle, and each angle adds a m
 
 ### 9. Tests of the Watcher and the Display
 
-`./bin/pipeline.sh test` tests `focus-merge`, the quilt and the watcher, against a fake rig. Worth having:
+`./bin/pipeline.sh test` tests `focus-merge`, the quilt, the interleaving of the display, and the watcher, against a fake rig. Worth having:
+
+- A test of the viewer: that its window covers the Portrait exactly. It needs an X server with two monitors, e.g. Xvfb with Xinerama.
 
 - A test of the watcher's link to the rig: `test_watch.py` replaces the rig with a fake one, so the `ssh` and `rsync` commands and the WebSocket are untested. A folder with a stand-in `ssh` and `rsync`, and the topics through a rosbridge, as a script.
 - A test of the development and the grading on a real CR2 of the rig, in the repo.

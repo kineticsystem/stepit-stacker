@@ -28,7 +28,7 @@ It follows one idea: **the rig only shoots, and says when an angle and a session
 
 ## The Big Picture
 
-StepIt Stacker is a Python package, `pipeline`, that chains other programs: darktable for the development and the grading, `focus-merge`, our C++ program, for the merge, and Looking Glass's software for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
+StepIt Stacker is a Python package, `pipeline`, that chains other programs: darktable for the development and the grading, `focus-merge`, our C++ program, for the merge, and our own interleaving for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
 
 ```mermaid
 ---
@@ -102,7 +102,7 @@ flowchart TB
         Merge["2 · Merge<br/>focus-merge"]
         Grade["3 · Grade<br/>darktable-cli, grade.xmp"]
         Quilt["4 · Quilt"]
-        Show["5 · Show<br/>Bridge, lkg-toolkit"]
+        Show["5 · Show<br/>interleave, GTK window"]
         Watcher -- "each angle" --> Develop --> Merge --> Grade
         Watcher -- "each complete session" --> Quilt --> Show
     end
@@ -129,7 +129,7 @@ What StepIt Stacker uses of the rig:
 
 | Path | Role |
 |---|---|
-| [`bin/pipeline.sh`](../bin/pipeline.sh) | Builds and starts the container `stepit-pipeline`, with the screen, the GPU and the USB of the Looking Glass, and runs the commands in it. |
+| [`bin/pipeline.sh`](../bin/pipeline.sh) | Builds and starts the container `stepit-pipeline`, with the screen and the Looking Glass's drive, and runs the commands in it. |
 | [`pipeline/__main__.py`](../pipeline/__main__.py) | The commands: `watch`, `session`, `edit`, `grade`, `quilt`, `show`. |
 | [`pipeline/watch.py`](../pipeline/watch.py) | The watcher: one angle or session at a time, as the rig announces them: each angle's steps 1 to 3, and each session's quilt. |
 | [`pipeline/rig.py`](../pipeline/rig.py) | The rig: its topics through rosbridge, its pictures through ssh and rsync. |
@@ -137,7 +137,9 @@ What StepIt Stacker uses of the rig:
 | [`pipeline/darktable.py`](../pipeline/darktable.py) | Steps 1 and 3, with `darktable-cli`, and darktable's window for `edit`. |
 | [`pipeline/merge.py`](../pipeline/merge.py) | Step 2: runs `focus-merge`. |
 | [`pipeline/quilt.py`](../pipeline/quilt.py) | Step 4. |
-| [`pipeline/display.py`](../pipeline/display.py) | Step 5. |
+| [`pipeline/display.py`](../pipeline/display.py) | Step 5: the hologram, from the quilt and the Portrait's calibration. |
+| [`pipeline/viewer.py`](../pipeline/viewer.py) | Step 5: the hologram full-screen on the Portrait, in a process of its own. |
+| [`pipeline/window.py`](../pipeline/window.py) | Makes a window full-screen on one monitor, through libX11. |
 | [`pipeline/layout.py`](../pipeline/layout.py) | Where the files of a session are. |
 | [`pipeline/config.py`](../pipeline/config.py) | Reads `config/pipeline.toml`. |
 | [`src/`](../src) | `focus-merge`: `tiff_io` reads and writes the 16-bit TIFFs, `align` aligns the frames, `fuse` merges them, `main` chains them. |
@@ -197,13 +199,22 @@ A pair that cannot be matched stops the merge with `frame N cannot be aligned wi
 3. The views are placed from the bottom left to the top right, the leftmost first, as Looking Glass expects: view 0 is the bottom left, rows go up.
 4. The quilt is saved as an 8-bit PNG named `<session>_qs8x6a0.75.png`, which tells its layout to Looking Glass's tools.
 
-`quilt.reverse` reverses the views, for a stage that turns the other way.
+The leftmost view is the last angle. The stage turns the subject, and a subject turned one way looks as if the camera had moved the other way: with the first angle first, the depth on the Portrait was inside out. `quilt.reverse` puts the first angle first, for a stage that turns the other way.
 
 ### 5. Show
 
-[`display.py`](../pipeline/display.py) starts Looking Glass Bridge, the service that drives the Portrait, if it does not answer on its port, 33334, yet. It then plays the quilt in a loop with `lkg-toolkit -t play`. The player waits for a key press before it exits, and fails without a terminal, so a small helper, `python3 -m pipeline.display`, runs it on a pseudo-terminal of its own, in the background, and copies what it prints to `/tmp/stepit-display/player.log`. The next quilt stops it and starts another. The step succeeds once the player says `Listening for events`.
+The Portrait is a screen behind a sheet of slanted lenses: each sub-pixel is seen from one direction only. [`display.py`](../pipeline/display.py) turns the quilt into the image the screen must show, the hologram: for each sub-pixel, it takes the view seen from that sub-pixel's direction, at the same place in the view. Which view that is follows from the Portrait's calibration, `LKG_calibration/visual.json` on its own drive, which the desktop mounts under `/media`:
 
-Bridge draws through X, which the Ubuntu desktop gives through XWayland, and finds the Portrait through its USB and HID devices.
+| Value | From `visual.json` | What it is |
+|---|---|---|
+| `pitch` | `pitch × screenW / DPI × cos(atan(1 / slope))` | The lenses across the screen's width, along their slant. |
+| `tilt` | `screenH / (screenW × slope)` | How far the lenses slant. |
+| `subp` | `1 / (screenW × 3)` | One sub-pixel, as a fraction of the screen's width. |
+| `center` | `center` | Where view 0 starts under a lens. |
+
+For the sub-pixel `i` of the pixel at `u, v`, from the bottom left in fractions of the screen, the view is `(u + i × subp + v × tilt) × pitch − center`, modulo 1, reversed when `invView` is set, times the 48 views. These are the formulas of Looking Glass's lenticular shader, as their [WebXR library](https://github.com/Looking-Glass/looking-glass-webxr) publishes them, under the Apache 2.0 licence. `flipImageX` reverses `tilt` and `subp`. The computation runs on the CPU with numpy, in about 2 seconds, and takes each sub-pixel from the nearest pixel of the quilt.
+
+[`viewer.py`](../pipeline/viewer.py), a process of its own, shows the hologram full-screen on the monitor of the Portrait's size, 1536 × 2048, until the next hologram replaces it. It runs at 100% scaling, `GDK_SCALE=1`, whatever the desktop's, since one pixel off draws the hologram for the wrong lenses. GNOME's window manager on X11 places a new window on the main monitor and ignores a request to move it, and GTK's own request to go full-screen on a monitor. It does make a window full-screen on a given monitor when asked as a pager would be, with the EWMH messages `_NET_WM_FULLSCREEN_MONITORS` and `_NET_WM_STATE`, which [`window.py`](../pipeline/window.py) sends with libX11 through ctypes. The step succeeds once the viewer says its window covers the Portrait.
 
 ## The Watcher
 
@@ -307,16 +318,16 @@ A session that stops halfway, e.g. at a shot whose picture did not come, gets no
 
 ## The Containers
 
-One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, darktable, OpenCV, libtiff, Python with OpenCV and `python3-websocket`, rsync, ssh, `libnss-mdns`, Looking Glass Bridge and LKG-Toolkit. Bridge is installed by its own installer, with its analytics off. LKG-Toolkit is built unmodified, for the .NET 7 it targets, and run on the .NET 8 runtime, as Ubuntu 24.04 no longer ships .NET 7. The image runs in two ways:
+One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, darktable, OpenCV, libtiff, Python with OpenCV, `python3-websocket` and GTK, rsync, ssh and `libnss-mdns`. The image runs in two ways:
 
 | Container | Started by | What it mounts |
 |---|---|---|
-| `stepit-pipeline` | `./bin/pipeline.sh start` | The repo at `~/ws`, the home at its own path, `~/.ssh` read-only, the host's Avahi socket, the X socket and its cookie, the GPU, and the USB, HID devices and `/media` of the Looking Glass. |
+| `stepit-pipeline` | `./bin/pipeline.sh start` | The repo at `~/ws`, the home at its own path, `~/.ssh` read-only, the host's Avahi socket, the X socket and its cookie, and `/media`, where the desktop mounts the Looking Glass's drive. |
 | `stepit-stacker`, for development | `./docker/dock.sh stepit-stacker start` | The repo at `~/ws`, the home at its own path. |
 
 The repo is always at `~/ws`, so the CMake cache in `build`, which records its path, is valid in both. The home is mounted at its own path, so that a folder is given to a command by its host path.
 
-`stepit-pipeline` uses the X server of one login, through its cookie, so it is started after logging in, and does not restart with the computer. The Looking Glass's HID devices are passed one by one when the container starts, so the Portrait is plugged in before. Docker containers cannot resolve `.local` names, e.g. `stepit.local`: the container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`.
+`stepit-pipeline` uses the X server of one login, through its cookie, so it is started after logging in, and does not restart with the computer. `/media` is mounted with `rslave`, so a drive mounted later, e.g. the Portrait plugged in after the start, appears in the container too. Docker containers cannot resolve `.local` names, e.g. `stepit.local`: the container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`.
 
 ## Tests
 
@@ -326,6 +337,7 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 |---|---|
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
+| [`test_display.py`](../tests/test_display.py) | The interleaving, with a Portrait's calibration: the values read from `visual.json`, a mirrored screen, the hologram's size, one view per sub-pixel with every view seen, and `invView` reversing the views. |
 | [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: the rig's session is copied into `1_session`, each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, and a name that is not a session is ignored. |
 
 Checked by hand, to repeat after a change to each part:
@@ -335,7 +347,7 @@ Checked by hand, to repeat after a change to each part:
 | Develop | The developed frame is linear: its brightest pixels well below 65535, its ICC profile "Linear Rec2020 RGB". |
 | Grade | `./bin/pipeline.sh edit` on a session: darktable opens with the current grading, and closing it grades every angle. |
 | The watcher | Start it, shoot a FocusStack, follow `./bin/pipeline.sh logs`: each angle is queued as `announced by the rig`, processed, then the session, and the quilt is shown at the end. Stop it during a session and start it again: the missing angles are queued as `catching up`. The ssh and rsync commands and the WebSocket have no automated test. |
-| Show | `./bin/pipeline.sh show <quilt.png>` with the Portrait attached. |
+| Show | `./bin/pipeline.sh show <quilt.png>` with the Portrait attached, then look through the lens: one picture with depth, not a grid of views nor a blur. A quilt that looks right with Looking Glass's software on another computer is the reference. |
 
 The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepIt Macro, against its fake camera.
 
@@ -361,7 +373,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **The quilt's views are made between the angles.** A session has fewer angles than the 48 views. Shooting 48 angles is the clean way; optical flow fills the gap at the price of ghosts where it fails, e.g. thin legs crossing.
 
-**Looking Glass's own software for the display.** Bridge and LKG-Toolkit draw on the Portrait with its calibration, and are the least work. They are proprietary, for personal, non-commercial use, which is why the repo is private and the image is never published. Our own viewer, a fullscreen window with Looking Glass's published lenticular shader and the Portrait's calibration, would replace them if they fail.
+**Our own interleaving, not Looking Glass's software.** Looking Glass Bridge 2.6.3, with LKG-Toolkit to play the quilt, showed every quilt flat on this PC, as a grid of views, in the container and installed on Ubuntu alike, whatever the scaling, the GPU driver or the window's position. The interleaving is a few lines of published math and the calibration is on the Portrait's own drive, so the pipeline does it itself: a quilt that looks right on Windows with Looking Glass's software looks the same with ours. It is also open source, which Bridge and the toolkit are not, and runs on any computer with a screen, where Bridge is built for x86 only. The price: the hologram is a still image, computed on the CPU, and a new Looking Glass model may need a calibration value this code does not use yet, e.g. `subpixelCells`.
 
 **The rig announces the angles; the watcher does not watch the files.** A folder that stops growing may only be waiting for its next shot, and its last file may still be being written. Only the rig knows when an angle is complete, so it says it, as a ROS topic and as `stack.json`. The rig does not know who listens.
 

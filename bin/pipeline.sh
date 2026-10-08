@@ -31,25 +31,14 @@ function start() {
         -v "$HOME/.ssh:/home/developer/.ssh:ro"
         -v /run/avahi-daemon/socket:/run/avahi-daemon/socket
     )
-    # The screen, for darktable's window and Looking Glass Bridge: the X server
-    # of this login, through XWayland on Ubuntu's desktop.
+    # The screen, for darktable's window and the hologram on the Looking Glass:
+    # the X server of this login.
     options+=(-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro)
     if [[ -n "$XAUTHORITY" ]]; then
         options+=(-v "$XAUTHORITY:/home/developer/.Xauthority:ro" -e XAUTHORITY=/home/developer/.Xauthority)
     fi
-    # The GPU, and the Looking Glass: its USB device, its HID device for
-    # Bridge, and the drive with its calibration, which the desktop mounts
-    # under /media. The Looking Glass must be plugged in before the start.
-    if [[ -e /dev/dri ]]; then
-        options+=(--device /dev/dri)
-        for device in /dev/dri/card* /dev/dri/renderD*; do
-            if [[ -e "$device" ]]; then options+=(--group-add "$(stat -c %g "$device")"); fi
-        done
-    fi
-    options+=(-v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule "c 189:* rmw")
-    for device in /dev/hidraw*; do
-        if [[ -e "$device" ]]; then options+=(--device "$device"); fi
-    done
+    # The Looking Glass's drive, with its calibration, which the desktop mounts
+    # under /media once its USB cable is plugged in.
     options+=(-v /media:/media:ro,rslave)
 
     docker rm --force "$name" &> /dev/null || true

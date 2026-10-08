@@ -8,6 +8,10 @@
 3. The views are placed from the bottom-left to the top-right, the leftmost
    first, as Looking Glass expects, and saved as an 8-bit PNG named
    <session>_qs8x6a0.75.png, which tells its layout to Looking Glass's tools.
+
+The leftmost view is the last angle: the stage turns the subject, and a subject
+turned one way looks as if the camera had moved the other way. quilt.reverse
+puts the first angle first, for a stage that turns the other way.
 """
 
 import cv2
@@ -75,7 +79,7 @@ def assemble(views, quilt):
 
 
 def build(graded_images, path, quilt):
-    """Builds the quilt of the graded images, in the order of the angles, into path."""
+    """Builds the quilt of the graded images, given in the order of the angles, into path."""
     views = []
     for image_path in graded_images:
         image = cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED)
@@ -83,7 +87,7 @@ def build(graded_images, path, quilt):
             raise RuntimeError(f"cannot read {image_path}")
         scale = 65535.0 if image.dtype == np.uint16 else 255.0
         views.append(view(image, quilt) / scale)
-    if quilt.reverse:
+    if not quilt.reverse:
         views.reverse()
     grid = assemble(retime(views, quilt.views), quilt)
     path.parent.mkdir(parents=True, exist_ok=True)

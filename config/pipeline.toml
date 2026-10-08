@@ -18,8 +18,8 @@ mirror = "pictures"
 rotate = 0
 
 # The quilt for the Looking Glass Portrait: 8 x 6 views of 420 x 560 pixels.
-# Set reverse to true if the depth looks inside out: the views then go from
-# the last angle of the session to the first.
+# The views go from the last angle of the session to the first, which is right
+# for the rig's stage. Set reverse to true if the depth looks inside out.
 [quilt]
 columns = 8
 rows = 6
