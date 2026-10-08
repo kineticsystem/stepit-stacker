@@ -1,13 +1,15 @@
 """The watcher: processes each angle as soon as the rig has shot it, and shows the session when it is complete.
 
 For each angle the rig announces, it copies the angle into the mirror and
-processes it. When the rig has taken every picture of the session and no
-angle of it waits any more, it builds the quilt and shows it.
+processes it. When the rig announces that every angle of a session is done, it
+copies the session's all_stacks.json, processes any angle it lists that has no
+graded image here yet, then builds the quilt and shows it.
 
 At every connection it also catches up: it processes every angle of the rig
 that has a stack.json and no graded image here yet, e.g. angles shot while
-this computer was off. Angles are processed one at a time, in the order they
-come.
+this computer was off, then builds the quilt of every session that has an
+all_stacks.json and no quilt here yet, without showing it. Angles and sessions
+are processed one at a time, in the order they come.
 """
 
 import logging
@@ -20,60 +22,65 @@ from .rig import Rig, valid_folder
 
 log = logging.getLogger(__name__)
 
+ANGLE = "angle"
+SESSION = "session"
+
 
 class Watcher:
     def __init__(self, config):
         self.config = config
         self.rig = Rig(config)
         self.queue = queue.Queue()
-        self.queued = set()
+        # What waits in the queue, (kind, folder), with whether to show it: a
+        # session queued by the catch-up is shown if the rig announces it too.
+        self.queued = {}
         self.lock = threading.Lock()
-        self.progress = None  # [pictures taken, pictures in total], from the rig.
-        self.announced_session = None  # The session of the last angle the rig announced.
 
-    def enqueue(self, folder, reason):
-        if not valid_folder(folder):
-            log.warning("Ignoring a folder with an unexpected name: %r", folder)
+    def enqueue(self, kind, folder, reason, show=False):
+        if not valid_folder(folder) or (kind == SESSION and "/" in folder):
+            log.warning("Ignoring a %s with an unexpected name: %r", kind, folder)
             return
+        key = (kind, folder)
         with self.lock:
-            if folder in self.queued:
+            if key in self.queued:
+                self.queued[key] = self.queued[key] or show
                 return
-            self.queued.add(folder)
-        log.info("Queued %s (%s)", folder, reason)
-        self.queue.put(folder)
+            self.queued[key] = show
+        log.info("Queued the %s %s (%s)", kind, folder, reason)
+        self.queue.put(key)
 
     def catch_up(self):
         try:
-            folders = self.rig.finished_stacks()
+            angles, sessions = self.rig.finished()
         except Exception as error:  # noqa: BLE001
             log.error("Cannot list the finished stacks of the rig: %s", getattr(error, "stderr", "") or error)
             return
-        pending = []
-        for folder in folders:
-            angle = self.config.mirror / folder
-            if not Session(angle.parent).graded(angle).exists():
-                pending.append(folder)
-        log.info("The rig has %d finished angles, %d not processed here yet", len(folders), len(pending))
+        pending = [folder for folder in angles if not self.graded(folder)]
+        log.info("The rig has %d finished angles, %d not processed here yet", len(angles), len(pending))
         for folder in pending:
-            self.enqueue(folder, "catching up")
+            self.enqueue(ANGLE, folder, "catching up")
+        unfinished = [name for name in sessions if not self.quilted(name)]
+        log.info("The rig has %d finished sessions, %d without a quilt here yet", len(sessions), len(unfinished))
+        for name in unfinished:
+            self.enqueue(SESSION, name, "catching up")
+
+    def graded(self, folder):
+        angle = self.config.mirror / folder
+        return Session(angle.parent).graded(angle).exists()
+
+    def quilted(self, name):
+        return Session(self.config.mirror / name).quilt(self.config.quilt).exists()
 
     def on_connect(self):
         threading.Thread(target=self.catch_up, daemon=True).start()
 
     def on_stack_done(self, folder):
-        self.announced_session = folder.split("/")[0]
-        self.enqueue(folder, "announced by the rig")
+        self.enqueue(ANGLE, folder, "announced by the rig")
 
-    def on_progress(self, data):
-        self.progress = data
+    def on_all_stacks_done(self, folder):
+        self.enqueue(SESSION, folder, "announced by the rig", show=True)
 
-    def session_complete(self, session, current):
-        done, total = self.progress if self.progress and len(self.progress) == 2 else (0, -1)
-        with self.lock:
-            waiting = any(folder != current and folder.split("/")[0] == session.name for folder in self.queued)
-        return session.name == self.announced_session and done == total and not waiting
-
-    def handle(self, folder):
+    def handle_angle(self, folder):
         if self.rig.copy(folder) is None:
             return
         angle = self.config.mirror / folder
@@ -82,21 +89,38 @@ class Watcher:
             log.info("%s is processed already", folder)
         else:
             process_angle(session, angle, self.config)
-        if self.session_complete(session, folder):
-            log.info("%s is complete", session.name)
-            finish_session(session, self.config)
+
+    def handle_session(self, name, show):
+        description = self.rig.copy_all_stacks(name)
+        # An angle whose announcement was missed, e.g. lost with the connection.
+        for stack in description.get("stacks", []):
+            folder = f"{name}/{stack}"
+            if not valid_folder(folder):
+                log.warning("Ignoring an angle with an unexpected name: %r", folder)
+            elif not self.graded(folder):
+                try:
+                    self.handle_angle(folder)
+                except Exception:  # noqa: BLE001 - one bad angle must not stop the others
+                    log.exception("Processing %s failed", folder)
+        log.info("%s is complete", name)
+        finish_session(Session(self.config.mirror / name), self.config, show)
 
     def work(self):
         while True:
-            folder = self.queue.get()
+            key = self.queue.get()
+            kind, folder = key
+            # Out of the queue before it runs: an announcement that comes
+            # meanwhile queues it again, e.g. to show a session.
+            with self.lock:
+                show = self.queued.pop(key)
             try:
-                self.handle(folder)
-            except Exception:  # noqa: BLE001 - one bad angle must not stop the others
+                if kind == SESSION:
+                    self.handle_session(folder, show)
+                else:
+                    self.handle_angle(folder)
+            except Exception:  # noqa: BLE001 - one bad angle or session must not stop the others
                 log.exception("Processing %s failed", folder)
-            finally:
-                with self.lock:
-                    self.queued.discard(folder)
 
     def run(self):
         threading.Thread(target=self.work, daemon=True).start()
-        self.rig.listen(self.on_connect, self.on_stack_done, self.on_progress)
+        self.rig.listen(self.on_connect, self.on_stack_done, self.on_all_stacks_done)

@@ -15,6 +15,7 @@ from pathlib import Path
 
 RAW_EXTENSIONS = {".cr2", ".cr3", ".nef", ".arw", ".dng", ".raf", ".orf", ".rw2"}
 STACK_FILE = "stack.json"
+ALL_STACKS_FILE = "all_stacks.json"
 OUTPUT_FOLDERS = {"merged", "graded", "quilt"}
 DEGREES = re.compile(r"_(-?\d+(?:\.\d+)?)deg$")
 
