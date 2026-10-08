@@ -52,7 +52,7 @@ Options:
 
 ### 3. The Portrait on a Computer of Its Own
 
-The pipeline shows its holograms itself, without Looking Glass's software, so the Portrait can hang off any computer with a screen output, e.g. a Raspberry Pi: no desktop scaling to share with a 4K monitor, and no window that GNOME puts on the wrong monitor. The display would then be a small service on that computer, which the pipeline sends each new quilt, e.g. over HTTP, with `display.py`'s interleaving and a full-screen window, or no desktop at all.
+StepIt Holo, which shows the pipeline's quilts, runs on Raspberry Pi OS too, so the Portrait can hang off a computer of its own, e.g. a Raspberry Pi: no desktop scaling to share with a 4K monitor, and no window that GNOME puts on the wrong monitor. The display would then be a small service on that computer, which the pipeline sends each new quilt, e.g. over HTTP, with `stepit-holo show`.
 
 ### 4. Fewer Angles Than Views
 
@@ -87,9 +87,7 @@ The mirror keeps every raw file, about 300 MB per angle, and each angle adds a m
 
 ### 9. Tests of the Watcher and the Display
 
-`./bin/pipeline.sh test` tests `focus-merge`, the quilt, the interleaving of the display, and the watcher, against a fake rig. Worth having:
-
-- A test of the viewer: that its window covers the Portrait exactly. It needs an X server with two monitors, e.g. Xvfb with Xinerama.
+`./bin/pipeline.sh test` tests `focus-merge`, the quilt, how StepIt Holo is run, and the watcher, against a fake rig. Worth having:
 
 - A test of the watcher's link to the rig: `test_watch.py` replaces the rig with a fake one, so the `ssh` and `rsync` commands and the WebSocket are untested. A folder with a stand-in `ssh` and `rsync`, and the topics through a rosbridge, as a script.
 - A test of the development and the grading on a real CR2 of the rig, in the repo.

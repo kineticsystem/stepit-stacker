@@ -28,7 +28,7 @@ It follows one idea: **the rig only shoots, and says when an angle and a session
 
 ## The Big Picture
 
-StepIt Stacker is a Python package, `pipeline`, that chains other programs: darktable for the development and the grading, `focus-merge`, our C++ program, for the merge, and our own interleaving for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
+StepIt Stacker is a Python package, `pipeline`, that chains other programs: darktable for the development and the grading, `focus-merge`, our C++ program, for the merge, and StepIt Holo, our module, for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
 
 ```mermaid
 ---
@@ -102,7 +102,7 @@ flowchart TB
         Merge["2 · Merge<br/>focus-merge"]
         Grade["3 · Grade<br/>darktable-cli, grade.xmp"]
         Quilt["4 · Quilt"]
-        Show["5 · Show<br/>interleave, GTK window"]
+        Show["5 · Show<br/>stepit-holo show"]
         Watcher -- "each angle" --> Develop --> Merge --> Grade
         Watcher -- "each complete session" --> Quilt --> Show
     end
@@ -137,9 +137,7 @@ What StepIt Stacker uses of the rig:
 | [`pipeline/darktable.py`](../pipeline/darktable.py) | Steps 1 and 3, with `darktable-cli`, and darktable's window for `edit`. |
 | [`pipeline/merge.py`](../pipeline/merge.py) | Step 2: runs `focus-merge`. |
 | [`pipeline/quilt.py`](../pipeline/quilt.py) | Step 4. |
-| [`pipeline/display.py`](../pipeline/display.py) | Step 5: the hologram, from the quilt and the Portrait's calibration. |
-| [`pipeline/viewer.py`](../pipeline/viewer.py) | Step 5: the hologram full-screen on the Portrait, in a process of its own. |
-| [`pipeline/window.py`](../pipeline/window.py) | Makes a window full-screen on one monitor, through libX11. |
+| [`pipeline/display.py`](../pipeline/display.py) | Step 5: runs StepIt Holo, `modules/stepit-holo`, on the quilt. |
 | [`pipeline/layout.py`](../pipeline/layout.py) | Where the files of a session are. |
 | [`pipeline/config.py`](../pipeline/config.py) | Reads `config/pipeline.toml`. |
 | [`src/`](../src) | `focus-merge`: `tiff_io` reads and writes the 16-bit TIFFs, `align` aligns the frames, `fuse` merges them, `main` chains them. |
@@ -203,18 +201,11 @@ The leftmost view is the last angle. The stage turns the subject, and a subject 
 
 ### 5. Show
 
-The Portrait is a screen behind a sheet of slanted lenses: each sub-pixel is seen from one direction only. [`display.py`](../pipeline/display.py) turns the quilt into the image the screen must show, the hologram: for each sub-pixel, it takes the view seen from that sub-pixel's direction, at the same place in the view. Which view that is follows from the Portrait's calibration, `LKG_calibration/visual.json` on its own drive, which the desktop mounts under `/media`:
+[StepIt Holo](https://github.com/kineticsystem/stepit-holo), a project of its own, in the submodule `modules/stepit-holo`, shows a quilt on a Looking Glass Portrait. It reads the Portrait's calibration from the Portrait's own drive, which the desktop mounts under `/media`, turns the quilt into the image the Portrait's screen must show, and shows that image full-screen on the Portrait, pixel for pixel, at 100% whatever the desktop's scaling. How it does it is in its own [architecture document](../modules/stepit-holo/docs/ARCHITECTURE.md).
 
-| Value | From `visual.json` | What it is |
-|---|---|---|
-| `pitch` | `pitch × screenW / DPI × cos(atan(1 / slope))` | The lenses across the screen's width, along their slant. |
-| `tilt` | `screenH / (screenW × slope)` | How far the lenses slant. |
-| `subp` | `1 / (screenW × 3)` | One sub-pixel, as a fraction of the screen's width. |
-| `center` | `center` | Where view 0 starts under a lens. |
+[`display.py`](../pipeline/display.py) runs `python3 -m stepit_holo show <quilt> --columns 8 --rows 6` from the submodule, in a process of its own, and stops the one before: each quilt replaces the last on the Portrait. The step succeeds once StepIt Holo prints `Showing`; if it stops first, its message, e.g. `no Looking Glass found`, becomes the step's error. Its output is in `/tmp/stepit-display/viewer.log` in the container.
 
-For the sub-pixel `i` of the pixel at `u, v`, from the bottom left in fractions of the screen, the view is `(u + i × subp + v × tilt) × pitch − center`, modulo 1, reversed when `invView` is set, times the 48 views. These are the formulas of Looking Glass's lenticular shader, as their [WebXR library](https://github.com/Looking-Glass/looking-glass-webxr) publishes them, under the Apache 2.0 licence. `flipImageX` reverses `tilt` and `subp`. The computation runs on the CPU with numpy, in about 2 seconds, and takes each sub-pixel from the nearest pixel of the quilt.
-
-[`viewer.py`](../pipeline/viewer.py), a process of its own, shows the hologram full-screen on the monitor of the Portrait's size, 1536 × 2048, until the next hologram replaces it. It runs at 100% scaling, `GDK_SCALE=1`, whatever the desktop's, since one pixel off draws the hologram for the wrong lenses. GNOME's window manager on X11 places a new window on the main monitor and ignores a request to move it, and GTK's own request to go full-screen on a monitor. It does make a window full-screen on a given monitor when asked as a pager would be, with the EWMH messages `_NET_WM_FULLSCREEN_MONITORS` and `_NET_WM_STATE`, which [`window.py`](../pipeline/window.py) sends with libX11 through ctypes. The step succeeds once the viewer says its window covers the Portrait.
+The submodule is pinned to a commit of StepIt Holo, which `git submodule update --remote modules/stepit-holo` moves to its latest, to commit here.
 
 ## The Watcher
 
@@ -339,7 +330,7 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 |---|---|
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
-| [`test_display.py`](../tests/test_display.py) | The interleaving, with a Portrait's calibration: the values read from `visual.json`, a mirrored screen, the hologram's size, one view per sub-pixel with every view seen, and `invView` reversing the views. |
+| [`test_display.py`](../tests/test_display.py) | How StepIt Holo is run, against a stand-in for it: the command with the quilt's layout, its message when it stops, and a missing submodule or desktop. StepIt Holo's own tests run in its repo: `cd modules/stepit-holo && python3 -m unittest discover tests`. |
 | [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: the rig's session is copied into `1_session`, each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, the catch-up every minute shows a session whose announcement was lost, leaves a failed angle alone until the next connection and says once that the rig does not answer, and a name that is not a session is ignored. |
 
 Checked by hand, to repeat after a change to each part:
@@ -375,7 +366,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **The quilt's views are made between the angles.** A session has fewer angles than the 48 views. Shooting 48 angles is the clean way; optical flow fills the gap at the price of ghosts where it fails, e.g. thin legs crossing.
 
-**Our own interleaving, not Looking Glass's software.** Looking Glass Bridge 2.6.3, with LKG-Toolkit to play the quilt, showed every quilt flat on this PC, as a grid of views, in the container and installed on Ubuntu alike, whatever the scaling, the GPU driver or the window's position. The interleaving is a few lines of published math and the calibration is on the Portrait's own drive, so the pipeline does it itself: a quilt that looks right on Windows with Looking Glass's software looks the same with ours. It is also open source, which Bridge and the toolkit are not, and runs on any computer with a screen, where Bridge is built for x86 only. The price: the hologram is a still image, computed on the CPU, and a new Looking Glass model may need a calibration value this code does not use yet, e.g. `subpixelCells`.
+**StepIt Holo for the display, not Looking Glass's software.** Looking Glass Bridge 2.6.3, with LKG-Toolkit to play the quilt, showed every quilt flat on this PC, as a grid of views, in the container and installed on Ubuntu alike, whatever the scaling, the GPU driver or the window's position, and it is built for x86 only. StepIt Holo does the interleaving itself, from published math and the Portrait's own calibration, and is open source. It is a project of its own, so that anyone with a Portrait can use it, and the display can move to a computer of its own, e.g. a Raspberry Pi, see [`TODO.md`](../TODO.md).
 
 **The rig announces the angles; the watcher does not watch the files.** A folder that stops growing may only be waiting for its next shot, and its last file may still be being written. Only the rig knows when an angle is complete, so it says it, as a ROS topic and as `stack.json`. The rig does not know who listens.
 
