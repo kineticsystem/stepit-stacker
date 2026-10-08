@@ -28,7 +28,7 @@ For each angle, as soon as the rig has shot it:
 Once the rig has shot the whole session:
 
 4. **Quilt.** The graded images become the 48 views of a quilt, the 3D image format of the Looking Glass.
-5. **Show.** Looking Glass Bridge plays the quilt on the Portrait.
+5. **Show.** The quilt is interleaved for the Portrait, with the Portrait's own calibration, and shown full-screen on it as a hologram.
 
 How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -36,7 +36,7 @@ How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - **A PC with Ubuntu and Docker,** see [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/). Everything runs in a Docker image built from this repo, on this PC, not on the rig.
 - **The rig, reachable by ssh** as `robot@stepit.local` with this PC's key, without a password. Check it with `ssh -o BatchMode=yes robot@stepit.local true`.
-- **The Looking Glass Portrait,** on HDMI and USB-C, plugged in before the pipeline starts. In Ubuntu's display settings, set it as an extended display ("Join Displays"), in portrait orientation, at 100% scaling.
+- **The Looking Glass Portrait,** on HDMI and on USB-C to this PC, with a cable that carries data: its drive holds its calibration, which the desktop mounts under `/media`. In Ubuntu's display settings, set it as an extended display ("Join Displays"), in portrait orientation. No Looking Glass software is needed.
 
 ## Configure
 
@@ -49,7 +49,7 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 | `rig.pictures` | `stepit-macro/pictures` | The rig's pictures folder, relative to the user's home on the rig. |
 | `pictures.mirror` | `pictures` | Where the rig's pictures are copied and every image of a session is saved: relative to the repo, or absolute. Git ignores `pictures`. |
 | `images.rotate` | `0` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. |
-| `quilt.reverse` | `false` | Set it to `true` if the depth on the Portrait looks inside out. |
+| `quilt.reverse` | `false` | The views go from the last angle to the first, right for the rig's stage. Set it to `true` if the depth on the Portrait looks inside out. |
 
 The other settings of `[quilt]` are those of the Portrait. Two darktable files in `config/` set how the images are developed and graded:
 
@@ -160,7 +160,9 @@ The repo is mounted at `~/ws`, with `~/ws/bin` and `~/ws/build` on the `PATH`. `
 
 **`frame N cannot be aligned with frame N-1`.** The alignment found nothing to lock onto: the frames show mostly blank background, or large overexposed areas. That angle gets no image, and the others go on. Frame the subject so it fills more of the picture, or reduce the exposure.
 
-**`Cannot show the quilt on the Looking Glass`.** The quilt is saved but not shown. `no X display`: start the pipeline from the desktop's login. `Bridge lists no Looking Glass display`: the Portrait was not plugged in at `start`, or Bridge cannot open its HID device, `/dev/hidraw*`, which only root can open by default; a udev rule on the host, made from the Portrait's USB ids in `lsusb`, gives it to the user.
+**`Cannot show the quilt on the Looking Glass`.** The quilt is saved but not shown. `no X display`: start the pipeline from the desktop's login. `no Looking Glass: no /media/*/*/LKG_calibration/visual.json`: the Portrait's USB cable is not plugged in, or carries power only; `lsusb` lists `Looking Glass Portrait` once it carries data. `No monitor of 1536 x 2048`: the Portrait is not on HDMI, or not part of the desktop in the display settings. Show the quilt again with `./bin/pipeline.sh quilt <session>`.
+
+**The Portrait shows a grid of small images, or a blur of many views.** The hologram is drawn for another position or size: the viewer's window does not cover the Portrait exactly. `/tmp/stepit-display/viewer.log` in the container says where it went.
 
 **The images are turned the wrong way.** Set `images.rotate`. The camera's own orientation is ignored, see [Develop](docs/ARCHITECTURE.md#1-develop).
 
@@ -175,7 +177,6 @@ StepIt Stacker is released under the MIT licence, see [`LICENSE`](LICENSE), and 
 | [darktable](https://www.darktable.org/) | GPL 3 | Develops and grades the images. It runs as a separate program. |
 | [OpenCV](https://opencv.org/) | Apache 2.0 | Aligns and merges the frames, and makes the quilt. |
 | [libtiff](https://libtiff.gitlab.io/libtiff/) | libtiff licence, BSD-like | Reads and writes the 16-bit TIFFs. |
-| [Looking Glass Bridge](https://lookingglassfactory.com/software/looking-glass-bridge) | Proprietary, [Looking Glass Factory's terms](https://lookingglassfactory.com/terms) | Drives the Portrait. Personal, non-commercial use only. |
-| [LKG-Toolkit](https://github.com/Looking-Glass/LKG-Toolkit) | Proprietary, its licence agreement | Plays the quilt through Bridge. It may not be modified or redistributed. |
+| [GTK](https://www.gtk.org/) | LGPL 2.1 | Shows the hologram full-screen on the Portrait. |
 
-Bridge and LKG-Toolkit are not in the repo: the Dockerfile downloads them when the image is built. Do not publish the image, which holds them.
+The hologram is computed with the formula of Looking Glass's lenticular shader, as their [WebXR library](https://github.com/Looking-Glass/looking-glass-webxr) publishes it under the Apache 2.0 licence, and with the calibration read from the Portrait's own drive. No Looking Glass software is used.
