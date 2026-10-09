@@ -33,3 +33,6 @@ reverse = false
 # e.g. on the Raspberry Pi the Portrait is plugged into, on port 8095.
 [display]
 url = "http://stepit.local:8095"
+# While the rig shoots, show the quilt of the angles done so far, from the
+# second angle on: its depth grows as the stage turns.
+progress = true

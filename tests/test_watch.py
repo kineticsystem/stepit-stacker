@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -66,8 +67,12 @@ class WatcherTest(unittest.TestCase):
         self.watcher.rig = self.rig
         self.processed = []
         self.finished = []
+        self.previewed = []
         self.enterContext(mock.patch.object(watch, "process_angle", side_effect=self.process_angle))
         self.enterContext(mock.patch.object(watch, "finish_session", side_effect=self.finish_session))
+        self.enterContext(mock.patch.object(watch, "preview_session",
+                                            side_effect=lambda session, _config: self.previewed.append(
+                                                [path.name for path in sorted(session.folder.glob("3_graded/*"))])))
 
     def process_angle(self, session, angle, config):
         self.processed.append(f"{session.name}/{angle.name}")
@@ -85,7 +90,7 @@ class WatcherTest(unittest.TestCase):
                 if kind == watch.SESSION:
                     self.watcher.handle_session(folder, show)
                 else:
-                    self.watcher.handle_angle(folder)
+                    self.watcher.handle_angle(folder, show)
             except Exception:  # noqa: BLE001 - as the worker
                 self.watcher.fail(kind, folder)
 
@@ -101,6 +106,38 @@ class WatcherTest(unittest.TestCase):
         self.run_queue()
         self.assertEqual(self.processed, [f"{SESSION}/{angle}" for angle in ANGLES])
         self.assertEqual(self.finished, [(SESSION, True)])
+
+    def progress(self, on=True):
+        self.watcher.config = replace(self.watcher.config, display_progress=on)
+
+    def test_each_announced_angle_shows_the_angles_done_so_far(self):
+        self.progress()
+        for angle in ANGLES:
+            self.rig.shoot(SESSION, angle)
+            self.watcher.on_stack_done(f"{SESSION}/{angle}")
+            self.run_queue()
+        self.assertEqual(self.previewed, [[f"{ANGLES[0]}.tif"], [f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"]])
+
+    def test_no_preview_while_angles_of_the_session_wait(self):
+        self.progress()
+        for angle in ANGLES:
+            self.rig.shoot(SESSION, angle)
+            self.watcher.on_stack_done(f"{SESSION}/{angle}")
+        self.run_queue()
+        # Only the last angle of the queue shows the session, with both angles.
+        self.assertEqual(self.previewed, [[f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"]])
+
+    def test_no_preview_when_catching_up_or_without_progress(self):
+        self.progress()
+        self.rig.shoot(SESSION, ANGLES[0])
+        self.watcher.catch_up()
+        self.run_queue()
+        self.progress(False)
+        self.rig.shoot(SESSION, ANGLES[1])
+        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[1]}")
+        self.run_queue()
+        self.assertEqual(len(self.processed), 2)
+        self.assertEqual(self.previewed, [])
 
     def test_a_session_processes_the_angles_whose_announcement_was_missed(self):
         for angle in ANGLES:

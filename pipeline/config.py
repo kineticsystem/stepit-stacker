@@ -34,6 +34,7 @@ class Config:
     rotate: int
     quilt: Quilt
     display_url: str = ""
+    display_progress: bool = False
     develop_xmp: Path = CONFIG / "develop.xmp"
     grade_xmp: Path = CONFIG / "grade.xmp"
 
@@ -50,4 +51,5 @@ def load(path=CONFIG / "pipeline.toml"):
         rotate=settings["images"]["rotate"],
         quilt=Quilt(**settings["quilt"]),
         display_url=settings["display"]["url"],
+        display_progress=settings["display"].get("progress", False),
     )
