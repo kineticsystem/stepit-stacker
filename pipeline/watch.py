@@ -126,10 +126,12 @@ class Watcher:
     def on_all_stacks_done(self, folder):
         self.enqueue(SESSION, folder, "announced by the rig", show=True)
 
-    def angles_waiting(self, name):
-        """Whether angles of the session wait in the queue."""
+    def angles_waiting(self, name, done):
+        """Whether other angles of the session than `done` wait in the queue. The catch-up may have queued `done`
+        again while it was processed: it is processed already, and does not count."""
         with self.lock:
-            return any(kind == ANGLE and folder.startswith(f"{name}/") for kind, folder in self.queued)
+            return any(kind == ANGLE and folder.startswith(f"{name}/") and folder != done
+                       for kind, folder in self.queued)
 
     def handle_angle(self, folder, show=False):
         if self.rig.copy(folder) is None:
@@ -140,7 +142,7 @@ class Watcher:
             return
         process_angle(session, angle, self.config)
         # Only the latest preview matters: none while the queue catches up.
-        if show and self.config.display_progress and not self.angles_waiting(session.name):
+        if show and self.config.display_progress and not self.angles_waiting(session.name, folder):
             preview_session(session, self.config)
 
     def handle_session(self, name, show):

@@ -127,6 +127,21 @@ class WatcherTest(unittest.TestCase):
         # Only the last angle of the queue shows the session, with both angles.
         self.assertEqual(self.previewed, [[f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"]])
 
+    def test_an_angle_queued_again_while_it_is_processed_does_not_stop_its_preview(self):
+        self.progress()
+        self.rig.shoot(SESSION, ANGLES[0])
+        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[0]}")
+        self.run_queue()
+        self.rig.shoot(SESSION, ANGLES[1])
+        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[1]}")
+        key = self.watcher.queue.get()
+        show = self.watcher.queued.pop(key)
+        # The catch-up every minute finds the angle the worker is processing, without its graded image yet.
+        self.watcher.catch_up(periodic=True)
+        self.watcher.handle_angle(key[1], show)
+        self.run_queue()
+        self.assertEqual(self.previewed[-1], [f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"])
+
     def test_no_preview_when_catching_up_or_without_progress(self):
         self.progress()
         self.rig.shoot(SESSION, ANGLES[0])
