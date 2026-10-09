@@ -46,7 +46,7 @@ def finish_session(session, config, show=True):
     log.info("%s: quilt of %d angles, %s", session.name, len(graded), path)
     if show:
         try:
-            display.show(path, config.quilt)
+            display.show(path, config.quilt, config.display_url)
         except RuntimeError as error:
             log.error("Cannot show the quilt on the Looking Glass: %s", error)
     return path

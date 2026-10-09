@@ -28,3 +28,8 @@ rows = 6
 view_width = 420
 view_height = 560
 reverse = false
+
+# StepIt Holo's server, which shows each quilt on the Looking Glass Portrait,
+# e.g. on the Raspberry Pi the Portrait is plugged into, on port 8095.
+[display]
+url = "http://stepit.local:8095"

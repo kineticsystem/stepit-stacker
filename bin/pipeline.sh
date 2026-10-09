@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # Runs the pipeline, pipeline/, in its container, stepit-pipeline, which can
-# draw on the screen and reach the Looking Glass. See README.md.
+# draw on the screen, for darktable. See README.md.
 #
 #   ./bin/pipeline.sh start                    build, then start the container and its watcher
 #   ./bin/pipeline.sh stop
@@ -29,15 +29,11 @@ function start() {
         -v "$HOME:$HOME"
         -v /run/avahi-daemon/socket:/run/avahi-daemon/socket
     )
-    # The screen, for darktable's window and the hologram on the Looking Glass:
-    # the X server of this login.
+    # The screen, for darktable's window: the X server of this login.
     options+=(-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro)
     if [[ -n "$XAUTHORITY" ]]; then
         options+=(-v "$XAUTHORITY:/home/developer/.Xauthority:ro" -e XAUTHORITY=/home/developer/.Xauthority)
     fi
-    # The Looking Glass's drive, with its calibration, which the desktop mounts
-    # under /media once its USB cable is plugged in.
-    options+=(-v /media:/media:ro,rslave)
 
     docker rm --force "$name" &> /dev/null || true
     docker run --detach --name "$name" --init "${options[@]}" -w /home/developer/ws "$image:latest" \

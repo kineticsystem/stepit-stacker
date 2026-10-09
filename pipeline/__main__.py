@@ -37,7 +37,7 @@ def main():
         if arguments.command == "watch":
             Watcher(config).run()
         elif arguments.command == "show":
-            display.show(arguments.quilt, config.quilt)
+            display.show(arguments.quilt, config.quilt, config.display_url)
         else:
             session = Session(arguments.folder)
             step = {"session": process_session, "edit": edit_session, "grade": grade_session,

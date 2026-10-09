@@ -8,16 +8,15 @@ What StepIt Stacker still needs. The goal is a sequence of high-quality images, 
   - [1. Try the Pipeline on the Rig's Stacks](#1-try-the-pipeline-on-the-rigs-stacks)
   - [2. The Light Flickers Between Angles](#2-the-light-flickers-between-angles)
 - [For the 3D Display](#for-the-3d-display)
-  - [3. The Portrait on a Computer of Its Own](#3-the-portrait-on-a-computer-of-its-own)
-  - [4. Fewer Angles Than Views](#4-fewer-angles-than-views)
+  - [3. Fewer Angles Than Views](#3-fewer-angles-than-views)
 - [Merging](#merging)
-  - [5. An Angle Whose Alignment Fails Gets No Image](#5-an-angle-whose-alignment-fails-gets-no-image)
-  - [6. The Hot Pixels Were Not Checked on the Rig's Frames](#6-the-hot-pixels-were-not-checked-on-the-rigs-frames)
+  - [4. An Angle Whose Alignment Fails Gets No Image](#4-an-angle-whose-alignment-fails-gets-no-image)
+  - [5. The Hot Pixels Were Not Checked on the Rig's Frames](#5-the-hot-pixels-were-not-checked-on-the-rigs-frames)
 - [The Watcher](#the-watcher)
-  - [7. A Failed Angle Is Retried Only at the Next Connection](#7-a-failed-angle-is-retried-only-at-the-next-connection)
-  - [8. The Mirror Only Grows](#8-the-mirror-only-grows)
+  - [6. A Failed Angle Is Retried Only at the Next Connection](#6-a-failed-angle-is-retried-only-at-the-next-connection)
+  - [7. The Mirror Only Grows](#7-the-mirror-only-grows)
 - [Quality](#quality)
-  - [9. Tests of the Watcher and the Display](#9-tests-of-the-watcher-and-the-display)
+  - [8. Tests of the Watcher and the Display](#8-tests-of-the-watcher-and-the-display)
 
 ## For the Image Sequence
 
@@ -50,11 +49,7 @@ Options:
 
 ## For the 3D Display
 
-### 3. The Portrait on a Computer of Its Own
-
-StepIt Holo, which shows the pipeline's quilts, runs on Raspberry Pi OS too, so the Portrait can hang off a computer of its own, e.g. a Raspberry Pi: no desktop scaling to share with a 4K monitor, and no window that GNOME puts on the wrong monitor. The display would then be a small service on that computer, which the pipeline sends each new quilt, e.g. over HTTP, with `stepit-holo show`.
-
-### 4. Fewer Angles Than Views
+### 3. Fewer Angles Than Views
 
 The quilt has 48 views, a session 35 angles. The pipeline makes the missing views between the angles with optical flow, which can show ghosts where the flow fails, e.g. thin legs or hairs crossing each other. Options:
 
@@ -65,29 +60,29 @@ The view cone of the Portrait is about 58°, the rig's ±8° far less: the depth
 
 ## Merging
 
-### 5. An Angle Whose Alignment Fails Gets No Image
+### 4. An Angle Whose Alignment Fails Gets No Image
 
 `focus-merge` stops with `frame N cannot be aligned with frame N-1` when a pair of frames gives the alignment nothing to lock onto, e.g. a subject at the edge of the frame on a plain background. That angle gets no image, and the quilt has one angle less. Every angle makes the same rail steps, so the transform from one frame to the next is nearly the same for all of them, mostly a zoom: 0.3% to 1.5% per step on the sessions measured. An angle that fails could be aligned with the transforms of another angle of the session.
 
-### 6. The Hot Pixels Were Not Checked on the Rig's Frames
+### 5. The Hot Pixels Were Not Checked on the Rig's Frames
 
 darktable's hot pixels module repairs them with its default threshold and strength, in `config/develop.xmp`. On the rig's 5D Mark II at ISO 800 and 0.8 s, frames had 100 to 250 defective pixels, about 160 of them at the same positions across frames of different subjects. Check that the module repairs them, at the rig's ISO and exposures, without eating real detail: the matte top of a chip sparkles at the scale of a single pixel, and must stay. darktable's module works on single pixels, and may leave glints, small specular highlights spread over a few pixels.
 
 ## The Watcher
 
-### 7. A Failed Angle Is Retried Only at the Next Connection
+### 6. A Failed Angle Is Retried Only at the Next Connection
 
-The watcher catches up on the angles without a graded image when it connects to the rig, and every minute, but the catch-up every minute leaves alone what failed. An angle that failed stays without an image until the watcher reconnects or restarts, and then fails again the same way. Once item 5 gives a way to merge it, the watcher could retry it after the other angles of the session.
+The watcher catches up on the angles without a graded image when it connects to the rig, and every minute, but the catch-up every minute leaves alone what failed. An angle that failed stays without an image until the watcher reconnects or restarts, and then fails again the same way. Once item 4 gives a way to merge it, the watcher could retry it after the other angles of the session.
 
-### 8. The Mirror Only Grows
+### 7. The Mirror Only Grows
 
 The mirror keeps every raw file, about 300 MB per angle, and each angle adds a merged and a graded image, about 100 MB each: about 17 GB for a session of 35 angles. Nothing removes them. A rule is needed, e.g. keep the raw files for a number of days, or remove them once the angle is merged, depending on whether a session will ever be merged again from its raw files. The merged images are the masters for grading again, and should stay.
 
 ## Quality
 
-### 9. Tests of the Watcher and the Display
+### 8. Tests of the Watcher and the Display
 
-`./bin/pipeline.sh test` tests `focus-merge`, the quilt, how StepIt Holo is run, and the watcher, against a fake rig. Worth having:
+`./bin/pipeline.sh test` tests `focus-merge`, the quilt, the upload to StepIt Holo's server, and the watcher, against a fake rig. Worth having:
 
 - A test of the watcher's link to the rig's topics: `test_rig.py` tests the copy over HTTP against a stand-in for StepIt Camera's web server, but the WebSocket is untested. The topics through a rosbridge, as a script.
 - A test of the development and the grading on a real CR2 of the rig, in the repo.

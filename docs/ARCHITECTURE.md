@@ -103,15 +103,17 @@ flowchart TB
         Merge["2 · Merge<br/>focus-merge"]
         Grade["3 · Grade<br/>darktable-cli, grade.xmp"]
         Quilt["4 · Quilt"]
-        Show["5 · Show<br/>stepit-holo show"]
+        Show["5 · Show<br/>POST /quilt"]
         Watcher -- "each angle" --> Develop --> Merge --> Grade
         Watcher -- "each complete session" --> Quilt --> Show
     end
+    Holo["StepIt Holo's server<br/>e.g. on the rig's Raspberry Pi, port 8095"]
     Portrait["Looking Glass Portrait"]
     Rosbridge -- "WebSocket, JSON" --> Watcher
     RigPictures --> WebServer
     WebServer -- "HTTP: listings, files" --> Watcher
-    Show -- "HDMI" --> Portrait
+    Show -- "HTTP: the quilt" --> Holo
+    Holo -- "HDMI" --> Portrait
 
     classDef default fill:#3b6fb6,stroke:#2c5590,color:#ffffff
 ```
@@ -131,7 +133,7 @@ What StepIt Stacker uses of the rig:
 
 | Path | Role |
 |---|---|
-| [`bin/pipeline.sh`](../bin/pipeline.sh) | Builds and starts the container `stepit-pipeline`, with the screen and the Looking Glass's drive, and runs the commands in it. |
+| [`bin/pipeline.sh`](../bin/pipeline.sh) | Builds and starts the container `stepit-pipeline`, with the screen, for darktable's editor, and runs the commands in it. |
 | [`pipeline/__main__.py`](../pipeline/__main__.py) | The commands: `watch`, `session`, `edit`, `grade`, `quilt`, `show`. |
 | [`pipeline/watch.py`](../pipeline/watch.py) | The watcher: one angle or session at a time, as the rig announces them: each angle's steps 1 to 3, and each session's quilt. |
 | [`pipeline/rig.py`](../pipeline/rig.py) | The rig: its topics through rosbridge, its pictures over HTTP. |
@@ -139,7 +141,7 @@ What StepIt Stacker uses of the rig:
 | [`pipeline/darktable.py`](../pipeline/darktable.py) | Steps 1 and 3, with `darktable-cli`, and darktable's window for `edit`. |
 | [`pipeline/merge.py`](../pipeline/merge.py) | Step 2: runs `focus-merge`. |
 | [`pipeline/quilt.py`](../pipeline/quilt.py) | Step 4. |
-| [`pipeline/display.py`](../pipeline/display.py) | Step 5: runs StepIt Holo, `modules/stepit-holo`, on the quilt. |
+| [`pipeline/display.py`](../pipeline/display.py) | Step 5: uploads the quilt to StepIt Holo's server. |
 | [`pipeline/layout.py`](../pipeline/layout.py) | Where the files of a session are. |
 | [`pipeline/config.py`](../pipeline/config.py) | Reads `config/pipeline.toml`. |
 | [`src/`](../src) | `focus-merge`: `tiff_io` reads and writes the 16-bit TIFFs, `align` aligns the frames, `fuse` merges them, `main` chains them. |
@@ -203,11 +205,17 @@ The leftmost view is the last angle. The stage turns the subject, and a subject 
 
 ### 5. Show
 
-[StepIt Holo](https://github.com/kineticsystem/stepit-holo), a project of its own, in the submodule `modules/stepit-holo`, shows a quilt on a Looking Glass Portrait. It reads the Portrait's calibration from the Portrait's own drive, which the desktop mounts under `/media`, turns the quilt into the image the Portrait's screen must show, and shows that image full-screen on the Portrait, pixel for pixel, at 100% whatever the desktop's scaling. How it does it is in its own [architecture document](../modules/stepit-holo/docs/ARCHITECTURE.md).
+[StepIt Holo](https://github.com/kineticsystem/stepit-holo), a project of its own, shows a quilt on a Looking Glass Portrait. Its server runs on the computer the Portrait is plugged into, e.g. the rig's Raspberry Pi, in a container of its own: it reads the Portrait's calibration from the Portrait's own drive, turns the quilt into the image the Portrait's screen must show, and shows it straight on the screen, pixel for pixel. Its API is in its [API.md](https://github.com/kineticsystem/stepit-holo/blob/main/docs/API.md).
 
-[`display.py`](../pipeline/display.py) runs `python3 -m stepit_holo show <quilt> --columns 8 --rows 6` from the submodule, in a process of its own, and stops the one before: each quilt replaces the last on the Portrait. The step succeeds once StepIt Holo prints `Showing`; if it stops first, its message, e.g. `no Looking Glass found`, becomes the step's error. Its output is in `/tmp/stepit-display/viewer.log` in the container.
+[`display.py`](../pipeline/display.py) uploads the quilt to `display.url`, `POST /quilt`, a multipart form with the PNG and its layout, `columns` and `rows`, and `reverse` false: the quilt is built in the order of its views already. Each quilt replaces the last on the Portrait, also after the server restarts. The server answers once the quilt is shown:
 
-The submodule is pinned to a commit of StepIt Holo, which `git submodule update --remote modules/stepit-holo` moves to its latest, to commit here.
+| Answer | What the step does |
+|---|---|
+| `200` | Logs where it is shown, e.g. `HDMI-A-1 of /dev/dri/card1, 1536 x 2048`. |
+| `503` | Logs a warning, not an error: the server keeps the quilt, and shows it as soon as the Portrait is there. |
+| Any other, or no answer | Fails, with the server's message, e.g. `cannot reach StepIt Holo at http://stepit.local:8095`. |
+
+The form is built with the standard library, as the rest of the pipeline's HTTP, so that the image needs no HTTP client of its own.
 
 ## The Watcher
 
@@ -320,16 +328,16 @@ A session that stops halfway, e.g. at a shot whose picture did not come, gets no
 
 ## The Containers
 
-One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, darktable, OpenCV, libtiff, Python with OpenCV, `python3-websocket` and GTK, and `libnss-mdns`. The image runs in two ways:
+One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, darktable, OpenCV, libtiff, Python with OpenCV and `python3-websocket`, and `libnss-mdns`. The image runs in two ways:
 
 | Container | Started by | What it mounts |
 |---|---|---|
-| `stepit-pipeline` | `./bin/pipeline.sh start` | The repo at `~/ws`, the home at its own path, the host's Avahi socket, the X socket and its cookie, and `/media`, where the desktop mounts the Looking Glass's drive. |
+| `stepit-pipeline` | `./bin/pipeline.sh start` | The repo at `~/ws`, the home at its own path, the host's Avahi socket, and the X socket and its cookie, for darktable's editor. |
 | `stepit-stacker`, for development | `./docker/dock.sh stepit-stacker start` | The repo at `~/ws`, the home at its own path. |
 
 The repo is always at `~/ws`, so the CMake cache in `build`, which records its path, is valid in both. The home is mounted at its own path, so that a folder is given to a command by its host path.
 
-`stepit-pipeline` uses the X server of one login, through its cookie, so it is started after logging in, and does not restart with the computer. `/media` is mounted with `rslave`, so a drive mounted later, e.g. the Portrait plugged in after the start, appears in the container too. Docker containers cannot resolve `.local` names, e.g. `stepit.local`: the container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`.
+`stepit-pipeline` uses the X server of one login, through its cookie, so it is started after logging in, and does not restart with the computer. Docker containers cannot resolve `.local` names, e.g. `stepit.local`, the rig's and StepIt Holo's: the container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`.
 
 ## Tests
 
@@ -339,7 +347,7 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 |---|---|
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
-| [`test_display.py`](../tests/test_display.py) | How StepIt Holo is run, against a stand-in for it: the command with the quilt's layout, its message when it stops, and a missing submodule or desktop. StepIt Holo's own tests run in its repo: `cd modules/stepit-holo && python3 -m unittest discover tests`. |
+| [`test_display.py`](../tests/test_display.py) | The upload to StepIt Holo's server, against a stand-in for it: the form, with the quilt, its layout and `reverse` false, a quilt kept for later that is not an error, the server's message when it refuses the quilt, a server that cannot be reached, and no `display.url`. StepIt Holo's own tests run in its repo. |
 | [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: the rig's session is copied into `1_session`, each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, the catch-up every minute shows a session whose announcement was lost, leaves a failed angle alone until the next connection and says once that the rig does not answer, and a name that is not a session is ignored. |
 | [`test_rig.py`](../tests/test_rig.py) | The copy from the rig over HTTP, against a stand-in for StepIt Camera's web server: the finished angles and sessions from one listing, an angle copied with its `stack.json` last, the files already here skipped, a copy cut short continued with `Range`, an angle not finished skipped, one whose files are not all on the rig refused, and a session's `all_stacks.json`. |
 
@@ -350,7 +358,7 @@ Checked by hand, to repeat after a change to each part:
 | Develop | The developed frame is linear: its brightest pixels well below 65535, its ICC profile "Linear Rec2020 RGB". |
 | Grade | `./bin/pipeline.sh edit` on a session: darktable opens with the current grading, and closing it grades every angle. |
 | The watcher | Start it, shoot a FocusStack, follow `./bin/pipeline.sh logs`: each angle is queued as `announced by the rig`, processed, then the session, and the quilt is shown at the end. Stop it during a session and start it again: the missing angles are queued as `catching up`. The WebSocket has no automated test. |
-| Show | `./bin/pipeline.sh show <quilt.png>` with the Portrait attached, then look through the lens: one picture with depth, not a grid of views nor a blur. A quilt that looks right with Looking Glass's software on another computer is the reference. |
+| Show | `./bin/pipeline.sh show <quilt.png>` with StepIt Holo's server running and the Portrait attached to it, then look through the lens: one picture with depth, not a grid of views nor a blur. StepIt Holo's sample quilt, `wasp_qs8x6a0.75.jpg`, is the reference. |
 
 The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepIt Macro, against its fake camera.
 
@@ -360,7 +368,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **Add a step to each angle, e.g. a depth map.** Add it to `process_angle()` in [`process.py`](../pipeline/process.py), after the merge or the grading, and its file to [`layout.py`](../pipeline/layout.py), in a folder numbered after the one of the step before, e.g. `3_depth` between `2_merged` and the grading, which becomes `4_graded`.
 
-**Show the session another way.** Replace `display.show()`, which `finish_session()` calls with the quilt.
+**Show the session another way.** Replace `display.show()`, which `finish_session()` calls with the quilt. **Show it on another Portrait**: set `display.url` to its StepIt Holo's server.
 
 **Use another Looking Glass.** Set its quilt in `[quilt]` of `config/pipeline.toml`: columns, rows and the size of a view.
 
@@ -376,7 +384,9 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **The quilt's views are made between the angles.** A session has fewer angles than the 48 views. Shooting 48 angles is the clean way; optical flow fills the gap at the price of ghosts where it fails, e.g. thin legs crossing.
 
-**StepIt Holo for the display, not Looking Glass's software.** Looking Glass Bridge 2.6.3, with LKG-Toolkit to play the quilt, showed every quilt flat on this PC, as a grid of views, in the container and installed on Ubuntu alike, whatever the scaling, the GPU driver or the window's position, and it is built for x86 only. StepIt Holo does the interleaving itself, from published math and the Portrait's own calibration, and is open source. It is a project of its own, so that anyone with a Portrait can use it, and the display can move to a computer of its own, e.g. a Raspberry Pi, see [`TODO.md`](../TODO.md).
+**StepIt Holo for the display, not Looking Glass's software.** Looking Glass Bridge 2.6.3, with LKG-Toolkit to play the quilt, showed every quilt flat on this PC, as a grid of views, in the container and installed on Ubuntu alike, whatever the scaling, the GPU driver or the window's position, and it is built for x86 only. StepIt Holo does the interleaving itself, from published math and the Portrait's own calibration, and is open source. It is a project of its own, so that anyone with a Portrait can use it.
+
+**The quilt uploaded to a server, not shown by this computer.** The Portrait hangs off a computer of its own, e.g. the rig's Raspberry Pi: no desktop scaling to share with a 4K monitor, no window that GNOME puts on the wrong monitor, and a pipeline that needs no desktop to show. StepIt Holo's server keeps the last quilt and shows it again after a restart, so the Portrait shows the latest session even when this computer is off. The price: one more server to run, and an upload of a few MB per session.
 
 **The rig announces the angles; the watcher does not watch the files.** A folder that stops growing may only be waiting for its next shot, and its last file may still be being written. Only the rig knows when an angle is complete, so it says it, as a ROS topic and as `stack.json`. The rig does not know who listens.
 
