@@ -108,7 +108,7 @@ flowchart TB
         Watcher -- "each angle" --> Develop --> Merge --> Grade
         Watcher -- "each complete session" --> Quilt --> Show
     end
-    Holo["StepIt Holo's server<br/>e.g. on the rig's Raspberry Pi, port 8095"]
+    Holo["StepIt Holo's server<br/>holo.local, port 8095"]
     Portrait["Looking Glass Portrait"]
     Rosbridge -- "WebSocket, JSON" --> Watcher
     RigPictures --> WebServer
@@ -206,7 +206,7 @@ The leftmost view is the last angle. The stage turns the subject, and a subject 
 
 ### 5. Show
 
-[StepIt Holo](https://github.com/kineticsystem/stepit-holo), a project of its own, shows a quilt on a Looking Glass Portrait. Its server runs on the computer the Portrait is plugged into, e.g. the rig's Raspberry Pi, in a container of its own: it reads the Portrait's calibration from the Portrait's own drive, turns the quilt into the image the Portrait's screen must show, and shows it straight on the screen, pixel for pixel. Its API is in its [API.md](https://github.com/kineticsystem/stepit-holo/blob/main/docs/API.md).
+[StepIt Holo](https://github.com/kineticsystem/stepit-holo), a project of its own, shows a quilt on a Looking Glass Portrait. Its server runs on the Raspberry Pi the Portrait is plugged into, `holo`, a Raspberry Pi 5 of its own, in a container: it reads the Portrait's calibration from the Portrait's own drive, turns the quilt into the image the Portrait's screen must show, and shows it straight on the screen, pixel for pixel. Its API is in its [API.md](https://github.com/kineticsystem/stepit-holo/blob/main/docs/API.md).
 
 [`display.py`](../pipeline/display.py) uploads the quilt to `display.url`, `POST /quilt`, a multipart form with the PNG and its layout, `columns` and `rows`, and `reverse` false: the quilt is built in the order of its views already. Each quilt replaces the last on the Portrait, also after the server restarts. The server answers once the quilt is shown:
 
@@ -214,7 +214,7 @@ The leftmost view is the last angle. The stage turns the subject, and a subject 
 |---|---|
 | `200` | Logs where it is shown, e.g. `HDMI-A-1 of /dev/dri/card1, 1536 x 2048`. |
 | `503` | Logs a warning, not an error: the server keeps the quilt, and shows it as soon as the Portrait is there. |
-| Any other, or no answer | Fails, with the server's message, e.g. `cannot reach StepIt Holo at http://stepit.local:8095`. |
+| Any other, or no answer | Fails, with the server's message, e.g. `cannot reach StepIt Holo at http://holo.local:8095`. |
 
 The form is built with the standard library, as the rest of the pipeline's HTTP, so that the image needs no HTTP client of its own.
 
@@ -400,7 +400,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **StepIt Holo for the display, not Looking Glass's software.** Looking Glass Bridge 2.6.3, with LKG-Toolkit to play the quilt, showed every quilt flat on this PC, as a grid of views, in the container and installed on Ubuntu alike, whatever the scaling, the GPU driver or the window's position, and it is built for x86 only. StepIt Holo does the interleaving itself, from published math and the Portrait's own calibration, and is open source. It is a project of its own, so that anyone with a Portrait can use it.
 
-**The quilt uploaded to a server, not shown by this computer.** The Portrait hangs off a computer of its own, e.g. the rig's Raspberry Pi: no desktop scaling to share with a 4K monitor, no window that GNOME puts on the wrong monitor, and a pipeline that needs no desktop to show. StepIt Holo's server keeps the last quilt and shows it again after a restart, so the Portrait shows the latest session even when this computer is off. The price: one more server to run, and an upload of a few MB per session.
+**The quilt uploaded to a server, not shown by this computer.** The Portrait hangs off a computer of its own, `holo`, a Raspberry Pi 5: no desktop scaling to share with a 4K monitor, no window that GNOME puts on the wrong monitor, and a pipeline that needs no desktop to show. StepIt Holo's server keeps the last quilt and shows it again after a restart, so the Portrait shows the latest session even when this computer is off. The price: one more server to run, and an upload of a few MB per session.
 
 **The rig announces the angles; the watcher does not watch the files.** A folder that stops growing may only be waiting for its next shot, and its last file may still be being written. Only the rig knows when an angle is complete, so it says it, as a ROS topic and as `stack.json`. The rig does not know who listens.
 

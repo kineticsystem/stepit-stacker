@@ -30,9 +30,9 @@ view_height = 560
 reverse = false
 
 # StepIt Holo's server, which shows each quilt on the Looking Glass Portrait,
-# e.g. on the Raspberry Pi the Portrait is plugged into, on port 8095.
+# on holo, the Raspberry Pi the Portrait is plugged into, on port 8095.
 [display]
-url = "http://stepit.local:8095"
+url = "http://holo.local:8095"
 # While the rig shoots, show the quilt of the angles done so far: flat after
 # the first angle, then its depth grows as the stage turns.
 progress = true
