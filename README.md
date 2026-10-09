@@ -28,7 +28,7 @@ For each angle, as soon as the rig has shot it:
 Once the rig has shot the whole session:
 
 4. **Quilt.** The graded images become the 48 views of a quilt, the 3D image format of the Looking Glass.
-5. **Show.** The quilt is uploaded to [StepIt Holo](https://github.com/kineticsystem/stepit-holo)'s server, on the computer the Portrait is plugged into, e.g. the rig's Raspberry Pi, which shows it on the Portrait as a hologram, with the Portrait's own calibration.
+5. **Show.** The quilt is uploaded to [StepIt Holo](https://github.com/kineticsystem/stepit-holo)'s server, on the Raspberry Pi the Portrait is plugged into, `holo`, which shows it on the Portrait as a hologram, with the Portrait's own calibration.
 
 How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -36,7 +36,7 @@ How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - **A PC with Ubuntu and Docker,** see [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/). Everything runs in a Docker image built from this repo, on this PC, not on the rig.
 - **The rig, on the network** as `stepit.local`: its rosbridge on port 9090, and StepIt Camera's web server on port 8090, which serves its pictures. No key or password is needed. Check it with `curl http://stepit.local:8090/pictures/`.
-- **The Looking Glass Portrait, with StepIt Holo's server,** on the computer the Portrait is plugged into, on HDMI and USB: e.g. the rig's Raspberry Pi, at `http://stepit.local:8095`. See [Run the Server in Docker](https://github.com/kineticsystem/stepit-holo#run-the-server-in-docker) in StepIt Holo's README. Check it with `curl http://stepit.local:8095/status`. Without it, the pipeline makes the quilts, and says it cannot show them.
+- **The Looking Glass Portrait, with StepIt Holo's server,** on the Raspberry Pi the Portrait is plugged into, on HDMI and USB: `holo`, a Raspberry Pi 5 of its own, at `http://holo.local:8095`. See [Run the Server in Docker](https://github.com/kineticsystem/stepit-holo#run-the-server-in-docker) in StepIt Holo's README. Check it with `curl http://holo.local:8095/status`. Without it, the pipeline makes the quilts, and says it cannot show them.
 
 ## Configure
 
@@ -50,7 +50,7 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 | `pictures.mirror` | `pictures` | Where the rig's pictures are copied and every image of a session is saved: relative to the repo, or absolute. Git ignores `pictures`. |
 | `images.rotate` | `90` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. On the rig, the stage's turn moves the subject up and down in the sensor's picture, and the Portrait shows its views from side to side: 90 makes the turn sideways. |
 | `quilt.reverse` | `false` | The views go from the last angle to the first, right for the rig's stage. Set it to `true` if the depth on the Portrait looks inside out. |
-| `display.url` | `http://stepit.local:8095` | StepIt Holo's server, which shows each quilt on the Portrait. |
+| `display.url` | `http://holo.local:8095` | StepIt Holo's server, which shows each quilt on the Portrait. |
 | `display.progress` | `true` | While the rig shoots, shows the quilt of the angles done so far: flat after the first angle, with depth from the second. `false` leaves the last session on the Portrait until the new one is complete. |
 
 The other settings of `[quilt]` are those of the Portrait. Two darktable files in `config/` set how the images are developed and graded:
@@ -164,11 +164,11 @@ The repo is mounted at `~/ws`, with `~/ws/bin` and `~/ws/build` on the `PATH`. `
 
 **`frame N cannot be aligned with frame N-1`.** The alignment found nothing to lock onto: the frames show mostly blank background, or large overexposed areas. That angle gets no image, and the others go on. Frame the subject so it fills more of the picture, or reduce the exposure.
 
-**`Cannot show the quilt on the Looking Glass`.** The quilt is saved but not shown. `cannot reach StepIt Holo`: its server is not running, or `display.url` is wrong; check it with `curl http://stepit.local:8095/status`. `refused`, followed by the server's message: the quilt is not one it can read. Show the quilt again with `./bin/pipeline.sh quilt <session>`.
+**`Cannot show the quilt on the Looking Glass`.** The quilt is saved but not shown. `cannot reach StepIt Holo`: its server is not running, or `display.url` is wrong; check it with `curl http://holo.local:8095/status`. `refused`, followed by the server's message: the quilt is not one it can read. Show the quilt again with `./bin/pipeline.sh quilt <session>`.
 
 **`StepIt Holo keeps <quilt>, and shows it once it can`.** The server has the quilt, but cannot show it yet, e.g. `no Looking Glass found` or `no screen of 1536 x 2048`: the Portrait is switched off or unplugged. The server shows it as soon as the Portrait is back, with nothing to do here; its [Troubleshooting](https://github.com/kineticsystem/stepit-holo#troubleshooting) says what to check.
 
-**The Portrait shows a grid of small images, or a blur of many views.** The hologram does not fall on the Portrait's lenses as it should. Check the Portrait with StepIt Holo's test quilt, `curl -X POST http://stepit.local:8095/numbers`, and its [Troubleshooting](https://github.com/kineticsystem/stepit-holo#troubleshooting).
+**The Portrait shows a grid of small images, or a blur of many views.** The hologram does not fall on the Portrait's lenses as it should. Check the Portrait with StepIt Holo's test quilt, `curl -X POST http://holo.local:8095/numbers`, and its [Troubleshooting](https://github.com/kineticsystem/stepit-holo#troubleshooting).
 
 **The Portrait shows a moving picture, not depth, as the head moves sideways.** The views move up and down instead of sideways: the stage's turn is not horizontal in the images. Set `images.rotate` to 90 or 270, then process the session again. If the depth then looks inside out, use the other of the two.
 
