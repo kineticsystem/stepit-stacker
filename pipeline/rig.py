@@ -107,8 +107,11 @@ class Rig:
             if Path(name).name != name or name.startswith("."):
                 raise RuntimeError(f"{folder}: {STACK_FILE} lists an unexpected file name: {name!r}")
             self.download(f"{folder}/{name}", local / name, sizes[name])
-        # Written last: the angle here is complete once its stack.json is.
-        (local / STACK_FILE).write_bytes(content)
+        # Written last: the angle here is complete once its stack.json is. Left as it is when unchanged: a newer
+        # stack.json than the graded image says that the angle must be processed again.
+        stack = local / STACK_FILE
+        if not stack.exists() or stack.read_bytes() != content:
+            stack.write_bytes(content)
         return description
 
     def copy_all_stacks(self, session):

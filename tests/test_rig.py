@@ -1,6 +1,7 @@
 """Tests how the pipeline reads the rig's pictures over HTTP, against a stand-in for StepIt Camera's web server."""
 
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -9,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from pipeline.config import Config, Quilt
+from pipeline.layout import STACK_FILE, mirrored
 from pipeline.rig import Rig
 
 SESSION = "2026-10-08_10-15-30"
@@ -118,6 +120,15 @@ class RigTest(unittest.TestCase):
         self.server.requests.clear()
         self.rig.copy(ANGLE)
         self.assertEqual(self.fetched(), [])
+
+    def test_leaves_an_unchanged_stack_json_alone(self):
+        # A newer stack.json than the graded image says that the angle must be processed again.
+        self.shoot()
+        self.rig.copy(ANGLE)
+        stack = mirrored(self.mirror, ANGLE) / STACK_FILE
+        os.utime(stack, (1, 1))
+        self.rig.copy(ANGLE)
+        self.assertEqual(stack.stat().st_mtime, 1)
 
     def test_continues_a_copy_cut_short(self):
         self.shoot(frames=(b"0123456789",))

@@ -45,6 +45,9 @@ class Watcher:
         # leaves them alone, rather than merge an angle that cannot be aligned again and again.
         self.failed = set()
         self.reachable = True
+        # What the worker processes now, (kind, folder): not queued again meanwhile, e.g. by the catch-up, which
+        # finds the angle without its graded image yet.
+        self.current = None
         self.lock = threading.Lock()
 
     def enqueue(self, kind, folder, reason, show=False):
@@ -54,6 +57,8 @@ class Watcher:
             return
         key = (kind, folder)
         with self.lock:
+            if key == self.current and kind == ANGLE:
+                return
             if key in self.queued:
                 self.queued[key] = self.queued[key] or show
                 return
@@ -168,6 +173,7 @@ class Watcher:
             # meanwhile queues it again, e.g. to show a session.
             with self.lock:
                 show = self.queued.pop(key)
+                self.current = key
             try:
                 if kind == SESSION:
                     self.handle_session(folder, show)
@@ -175,6 +181,9 @@ class Watcher:
                     self.handle_angle(folder, show)
             except Exception:  # noqa: BLE001 - one bad angle or session must not stop the others
                 self.fail(kind, folder)
+            finally:
+                with self.lock:
+                    self.current = None
 
     def run(self):
         threading.Thread(target=self.work, daemon=True).start()
