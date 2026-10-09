@@ -142,6 +142,17 @@ class WatcherTest(unittest.TestCase):
         self.run_queue()
         self.assertEqual(self.previewed[-1], [f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"])
 
+    def test_the_angle_being_processed_is_not_queued_again(self):
+        self.rig.shoot(SESSION, ANGLES[0])
+        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[0]}")
+        key = self.watcher.queue.get()
+        self.watcher.queued.pop(key)
+        self.watcher.current = key
+        # At a connection, the rig's latched announcement and the catch-up find the same angle.
+        self.watcher.catch_up()
+        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[0]}")
+        self.assertTrue(self.watcher.queue.empty())
+
     def test_no_preview_when_catching_up_or_without_progress(self):
         self.progress()
         self.rig.shoot(SESSION, ANGLES[0])
