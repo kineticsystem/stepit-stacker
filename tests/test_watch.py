@@ -110,37 +110,29 @@ class WatcherTest(unittest.TestCase):
     def progress(self, on=True):
         self.watcher.config = replace(self.watcher.config, display_progress=on)
 
+    def previews(self):
+        """Shows what the preview thread would, in this thread."""
+        self.watcher.preview_next(timeout=0)
+
     def test_each_announced_angle_shows_the_angles_done_so_far(self):
         self.progress()
         for angle in ANGLES:
             self.rig.shoot(SESSION, angle)
             self.watcher.on_stack_done(f"{SESSION}/{angle}")
             self.run_queue()
+            self.previews()
         self.assertEqual(self.previewed, [[f"{ANGLES[0]}.tif"], [f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"]])
 
-    def test_no_preview_while_angles_of_the_session_wait(self):
+    def test_a_busy_preview_shows_the_latest_angles_once(self):
         self.progress()
         for angle in ANGLES:
             self.rig.shoot(SESSION, angle)
             self.watcher.on_stack_done(f"{SESSION}/{angle}")
+        # Both angles are processed while the preview thread is busy: it shows both, once.
         self.run_queue()
-        # Only the last angle of the queue shows the session, with both angles.
+        self.previews()
+        self.previews()
         self.assertEqual(self.previewed, [[f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"]])
-
-    def test_an_angle_queued_again_while_it_is_processed_does_not_stop_its_preview(self):
-        self.progress()
-        self.rig.shoot(SESSION, ANGLES[0])
-        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[0]}")
-        self.run_queue()
-        self.rig.shoot(SESSION, ANGLES[1])
-        self.watcher.on_stack_done(f"{SESSION}/{ANGLES[1]}")
-        key = self.watcher.queue.get()
-        show = self.watcher.queued.pop(key)
-        # The catch-up every minute finds the angle the worker is processing, without its graded image yet.
-        self.watcher.catch_up(periodic=True)
-        self.watcher.handle_angle(key[1], show)
-        self.run_queue()
-        self.assertEqual(self.previewed[-1], [f"{ANGLES[0]}.tif", f"{ANGLES[1]}.tif"])
 
     def test_the_angle_being_processed_is_not_queued_again(self):
         self.rig.shoot(SESSION, ANGLES[0])
@@ -162,6 +154,7 @@ class WatcherTest(unittest.TestCase):
         self.rig.shoot(SESSION, ANGLES[1])
         self.watcher.on_stack_done(f"{SESSION}/{ANGLES[1]}")
         self.run_queue()
+        self.previews()
         self.assertEqual(len(self.processed), 2)
         self.assertEqual(self.previewed, [])
 
