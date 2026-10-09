@@ -67,6 +67,22 @@ class PreviewTest(unittest.TestCase):
         # A finished session has no more previews.
         self.assertIsNone(process.preview_session(self.session, self.config))
 
+    def test_a_session_finished_while_its_preview_is_built_keeps_its_own_quilt(self):
+        self.shoot_and_grade(2)
+        build = process.quilt.build
+
+        def build_and_finish(*arguments):
+            path = build(*arguments)
+            # Meanwhile, the worker builds the session's quilt.
+            self.session.quilt(QUILT).parent.mkdir(parents=True, exist_ok=True)
+            self.session.quilt(QUILT).write_bytes(b"the session's quilt")
+            return path
+
+        with mock.patch.object(process.quilt, "build", side_effect=build_and_finish):
+            self.assertIsNone(process.preview_session(self.session, self.config))
+        self.assertEqual(self.shown, [])
+        self.assertFalse(self.session.preview(QUILT).exists())
+
     def test_a_display_that_fails_does_not_fail_the_angle(self):
         self.shoot_and_grade(2)
         with mock.patch.object(process.display, "show", side_effect=RuntimeError("cannot reach StepIt Holo")), \

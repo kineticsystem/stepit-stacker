@@ -8,6 +8,7 @@ A preview:  while the rig shoots, the quilt of the angles graded so far.
 import logging
 import shutil
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -19,6 +20,9 @@ log = logging.getLogger(__name__)
 
 # A preview starts with the first angle: flat, the same picture in every view, until the second gives it depth.
 PREVIEW_ANGLES = 1
+# Previews run on a thread of their own, next to the session's quilt: one is shown at a time, and a preview is
+# never shown after its session's quilt.
+_showing = threading.Lock()
 
 
 def process_angle(session, angle, config):
@@ -51,7 +55,8 @@ def finish_session(session, config, show=True):
     session.preview(config.quilt).unlink(missing_ok=True)
     if show:
         try:
-            display.show(path, config.quilt, config.display_url)
+            with _showing:
+                display.show(path, config.quilt, config.display_url)
         except RuntimeError as error:
             log.error("Cannot show the quilt on the Looking Glass: %s", error)
     return path
@@ -69,7 +74,12 @@ def preview_session(session, config):
     try:
         path = quilt.build(graded, session.preview(config.quilt), config.quilt)
         log.info("%s: preview of %d angles in %.0f s", session.name, len(graded), time.monotonic() - started)
-        display.show(path, config.quilt, config.display_url)
+        with _showing:
+            if session.quilt(config.quilt).exists():
+                # The session was finished while the preview was built: its own quilt is shown.
+                path.unlink(missing_ok=True)
+                return None
+            display.show(path, config.quilt, config.display_url)
     except Exception as error:  # noqa: BLE001 - the angle is done whatever the preview
         log.warning("%s: no preview: %s", session.name, error)
         return None

@@ -1,8 +1,9 @@
 """The watcher: processes each angle as soon as the rig has shot it, and shows the session when it is complete.
 
 For each angle the rig announces, it copies the angle into the mirror and
-processes it, then, with display.progress, shows the quilt of the session's
-angles graded so far, unless more of them wait in the queue. When the rig
+processes it, then, with display.progress, asks for a preview: a thread of its
+own shows the quilt of the session's angles graded so far, the latest asked
+for, while the next angle is processed. When the rig
 announces that every angle of a session is done, it copies the session's
 all_stacks.json, processes any angle it lists that has no graded image here
 yet, then builds the quilt and shows it.
@@ -49,6 +50,9 @@ class Watcher:
         # finds the angle without its graded image yet.
         self.current = None
         self.lock = threading.Lock()
+        # The session whose preview is asked for, the latest only: the preview thread takes it.
+        self.preview_wanted = None
+        self.preview_asked = threading.Event()
 
     def enqueue(self, kind, folder, reason, show=False):
         # A session is one folder of the rig's pictures folder, an angle one folder in a session.
@@ -131,12 +135,24 @@ class Watcher:
     def on_all_stacks_done(self, folder):
         self.enqueue(SESSION, folder, "announced by the rig", show=True)
 
-    def angles_waiting(self, name, done):
-        """Whether other angles of the session than `done` wait in the queue. The catch-up may have queued `done`
-        again while it was processed: it is processed already, and does not count."""
+    def ask_preview(self, session):
         with self.lock:
-            return any(kind == ANGLE and folder.startswith(f"{name}/") and folder != done
-                       for kind, folder in self.queued)
+            self.preview_wanted = session
+            self.preview_asked.set()
+
+    def preview_next(self, timeout=None):
+        """Shows the preview asked for last, if one is asked for within `timeout`: the angles graded by then."""
+        if not self.preview_asked.wait(timeout):
+            return
+        with self.lock:
+            session, self.preview_wanted = self.preview_wanted, None
+            self.preview_asked.clear()
+        if session is not None:
+            preview_session(session, self.config)
+
+    def keep_previewing(self):
+        while True:
+            self.preview_next()
 
     def handle_angle(self, folder, show=False):
         if self.rig.copy(folder) is None:
@@ -146,9 +162,9 @@ class Watcher:
             log.info("%s is processed already", folder)
             return
         process_angle(session, angle, self.config)
-        # Only the latest preview matters: none while the queue catches up.
-        if show and self.config.display_progress and not self.angles_waiting(session.name, folder):
-            preview_session(session, self.config)
+        # Not for an angle of the catch-up: its session may be old.
+        if show and self.config.display_progress:
+            self.ask_preview(session)
 
     def handle_session(self, name, show):
         description = self.rig.copy_all_stacks(name)
@@ -188,4 +204,5 @@ class Watcher:
     def run(self):
         threading.Thread(target=self.work, daemon=True).start()
         threading.Thread(target=self.keep_catching_up, daemon=True).start()
+        threading.Thread(target=self.keep_previewing, daemon=True).start()
         self.rig.listen(self.on_connect, self.on_stack_done, self.on_all_stacks_done)
