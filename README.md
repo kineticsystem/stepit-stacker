@@ -51,7 +51,7 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 | `images.rotate` | `90` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. On the rig, the stage's turn moves the subject up and down in the sensor's picture, and the Portrait shows its views from side to side: 90 makes the turn sideways. |
 | `quilt.reverse` | `false` | The views go from the last angle to the first, right for the rig's stage. Set it to `true` if the depth on the Portrait looks inside out. |
 | `display.url` | `http://stepit.local:8095` | StepIt Holo's server, which shows each quilt on the Portrait. |
-| `display.progress` | `true` | While the rig shoots, shows the quilt of the angles done so far, from the second angle on. `false` leaves the last session on the Portrait until the new one is complete. |
+| `display.progress` | `true` | While the rig shoots, shows the quilt of the angles done so far: flat after the first angle, with depth from the second. `false` leaves the last session on the Portrait until the new one is complete. |
 
 The other settings of `[quilt]` are those of the Portrait. Two darktable files in `config/` set how the images are developed and graded:
 
@@ -68,7 +68,7 @@ Start the pipeline after logging in to the desktop, as darktable's editor, for `
 ./bin/pipeline.sh start
 ```
 
-The first start builds the image and `focus-merge`, which takes a few minutes. Then the container `stepit-pipeline` follows the rig. Each time the rig finishes an angle, it copies the angle into `pictures`, then develops, merges and grades it. While the rig shoots, from the second angle on, it shows on the Portrait the quilt of the angles done so far: the hologram's depth grows as the stage turns. When the rig has shot the whole session, it builds the quilt and shows it on the Portrait, where it stays until the next session replaces it. Nothing goes back to the rig.
+The first start builds the image and `focus-merge`, which takes a few minutes. Then the container `stepit-pipeline` follows the rig. Each time the rig finishes an angle, it copies the angle into `pictures`, then develops, merges and grades it. While the rig shoots, it shows on the Portrait the quilt of the angles done so far: flat after the first angle, then with a depth that grows as the stage turns. When the rig has shot the whole session, it builds the quilt and shows it on the Portrait, where it stays until the next session replaces it. Nothing goes back to the rig.
 
 ```bash
 ./bin/pipeline.sh logs     # follow what it does

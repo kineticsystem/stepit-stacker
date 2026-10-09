@@ -36,10 +36,17 @@ class PreviewTest(unittest.TestCase):
             graded.parent.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(graded), np.full((80, 60, 3), 20000 * (i + 1), np.uint16))
 
-    def test_one_angle_has_no_depth_and_no_preview(self):
-        self.shoot_and_grade(1)
+    def test_no_angle_no_preview(self):
         self.assertIsNone(process.preview_session(self.session, self.config))
         self.assertEqual(self.shown, [])
+
+    def test_one_angle_is_shown_flat(self):
+        self.shoot_and_grade(1)
+        path = process.preview_session(self.session, self.config)
+        self.assertEqual(self.shown, ["2026-10-09_10-00-00_preview_qs8x6a0.75.png"])
+        quilt = cv2.imread(str(path))
+        # The same picture in every view: the bottom left one and the top right one.
+        np.testing.assert_array_equal(quilt[-56:, :42], quilt[:56, -42:])
 
     def test_shows_the_quilt_of_the_angles_done_so_far(self):
         self.shoot_and_grade(2)
