@@ -17,8 +17,8 @@ from .layout import raw_files
 
 log = logging.getLogger(__name__)
 
-# A preview starts with the second angle: one angle has no depth.
-PREVIEW_ANGLES = 2
+# A preview starts with the first angle: flat, the same picture in every view, until the second gives it depth.
+PREVIEW_ANGLES = 1
 
 
 def process_angle(session, angle, config):
@@ -58,8 +58,8 @@ def finish_session(session, config, show=True):
 
 
 def preview_session(session, config):
-    """While the rig shoots, builds the quilt of the angles graded so far, and shows it on the Portrait: its depth
-    grows with each angle. Never raises: a preview must not fail the angle."""
+    """While the rig shoots, builds the quilt of the angles graded so far, and shows it on the Portrait: flat with
+    one angle, its depth growing with each angle after. Never raises: a preview must not fail the angle."""
     if session.quilt(config.quilt).exists():
         return None  # The session is done: its own quilt is shown.
     graded = [session.graded(angle) for angle in session.angles() if session.graded(angle).exists()]
