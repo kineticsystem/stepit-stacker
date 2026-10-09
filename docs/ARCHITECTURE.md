@@ -14,6 +14,7 @@
 - [The Watcher](#the-watcher)
   - [Following the Rig](#following-the-rig)
   - [Catching Up](#catching-up)
+  - [The Session While the Rig Shoots](#the-session-while-the-rig-shoots)
   - [A Complete Session](#a-complete-session)
 - [The Containers](#the-containers)
 - [Tests](#tests)
@@ -318,6 +319,16 @@ A message published while the watcher is not connected is lost: a topic is a liv
 
 The watcher also catches up every minute, `CATCH_UP_EVERY`, for a message lost while it was connected, e.g. one published before rosbridge had found a new publisher of the rig. A lost message then costs a minute, not the whole session until the next connection. A session found then was finished while the watcher ran, so it is shown, as its announcement would have been. What failed since the last connection, e.g. an angle that cannot be aligned, is left alone until the next connection, rather than merged again every minute. This catch-up logs only what it finds, and says once that the rig does not answer, and once that it answers again.
 
+### The Session While the Rig Shoots
+
+With `display.progress`, after each angle the rig announces, the worker builds the quilt of the session's angles graded so far and shows it: `preview_session()` of [`process.py`](../pipeline/process.py). The Portrait then shows the new subject from the second angle on, over the arc shot so far, its depth growing with each angle until the session's own quilt replaces it. One angle has no depth: the Portrait keeps the session before until there are two.
+
+- **Not the session's quilt.** The preview is `4_quilt/<session>_preview_qs8x6a0.75.png`: the session's own quilt says that the session is done, and the catch-up would skip it. `finish_session()` removes the preview once the session's quilt is built, and a session that has its quilt gets no more previews.
+- **Only the latest.** An angle queued by the catch-up shows none, and an angle with more angles of its session waiting in the queue shows none either: a backlog is processed first, and the last of its angles shows them all.
+- **Never an error.** A preview that cannot be built or shown is a warning: the angle is done.
+
+A preview takes about 7 seconds with 2 angles and 19 with 48 on this PC, mostly reading the 16-bit TIFFs and the optical flow between them, against minutes to develop and merge an angle. Each upload is a PNG of about 17 MB.
+
 ### A Complete Session
 
 The rig says when a session is complete, on `/focus_stack/all_stacks_done`. For each session, the worker copies its `all_stacks.json` into the session's `1_session`, processes each angle it lists that has no graded image here yet, e.g. one whose announcement was lost with the connection, then builds the quilt of the graded images. An angle that failed is left out of the quilt, with a warning.
@@ -347,8 +358,9 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 |---|---|
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
+| [`test_process.py`](../tests/test_process.py) | The preview with real quilts and a stand-in for the display: none with one angle, the quilt of the angles done so far under its own name, removed by the session's quilt, none once the session is done, and a display that fails, which does not fail the angle. |
 | [`test_display.py`](../tests/test_display.py) | The upload to StepIt Holo's server, against a stand-in for it: the form, with the quilt, its layout and `reverse` false, a quilt kept for later that is not an error, the server's message when it refuses the quilt, a server that cannot be reached, and no `display.url`. StepIt Holo's own tests run in its repo. |
-| [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: the rig's session is copied into `1_session`, each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, the catch-up every minute shows a session whose announcement was lost, leaves a failed angle alone until the next connection and says once that the rig does not answer, and a name that is not a session is ignored. |
+| [`test_watch.py`](../tests/test_watch.py) | The watcher against a fake rig, a folder with the same layout, without steps 1 to 5: the rig's session is copied into `1_session`, each announced angle is processed, an announced session processes the angles whose announcement was missed and is shown, the catch-up builds the quilt of a finished session without showing it and leaves a session without `all_stacks.json` or with its quilt alone, a preview after each announced angle, none while angles of the session wait or when catching up or without `display.progress`, the catch-up every minute shows a session whose announcement was lost, leaves a failed angle alone until the next connection and says once that the rig does not answer, and a name that is not a session is ignored. |
 | [`test_rig.py`](../tests/test_rig.py) | The copy from the rig over HTTP, against a stand-in for StepIt Camera's web server: the finished angles and sessions from one listing, an angle copied with its `stack.json` last, the files already here skipped, a copy cut short continued with `Range`, an angle not finished skipped, one whose files are not all on the rig refused, and a session's `all_stacks.json`. |
 
 Checked by hand, to repeat after a change to each part:

@@ -2,6 +2,7 @@
 
 An angle:   develop its raw frames, merge them, grade the merged image.
 A session:  every angle not processed yet, then the quilt, shown on the Portrait.
+A preview:  while the rig shoots, the quilt of the angles graded so far.
 """
 
 import logging
@@ -15,6 +16,9 @@ from .config import REPO
 from .layout import raw_files
 
 log = logging.getLogger(__name__)
+
+# A preview starts with the second angle: one angle has no depth.
+PREVIEW_ANGLES = 2
 
 
 def process_angle(session, angle, config):
@@ -44,11 +48,31 @@ def finish_session(session, config, show=True):
         log.warning("%s: only %d of %d angles have a graded image", session.name, len(graded), len(angles))
     path = quilt.build(graded, session.quilt(config.quilt), config.quilt)
     log.info("%s: quilt of %d angles, %s", session.name, len(graded), path)
+    session.preview(config.quilt).unlink(missing_ok=True)
     if show:
         try:
             display.show(path, config.quilt, config.display_url)
         except RuntimeError as error:
             log.error("Cannot show the quilt on the Looking Glass: %s", error)
+    return path
+
+
+def preview_session(session, config):
+    """While the rig shoots, builds the quilt of the angles graded so far, and shows it on the Portrait: its depth
+    grows with each angle. Never raises: a preview must not fail the angle."""
+    if session.quilt(config.quilt).exists():
+        return None  # The session is done: its own quilt is shown.
+    graded = [session.graded(angle) for angle in session.angles() if session.graded(angle).exists()]
+    if len(graded) < PREVIEW_ANGLES:
+        return None
+    started = time.monotonic()
+    try:
+        path = quilt.build(graded, session.preview(config.quilt), config.quilt)
+        log.info("%s: preview of %d angles in %.0f s", session.name, len(graded), time.monotonic() - started)
+        display.show(path, config.quilt, config.display_url)
+    except Exception as error:  # noqa: BLE001 - the angle is done whatever the preview
+        log.warning("%s: no preview: %s", session.name, error)
+        return None
     return path
 
 

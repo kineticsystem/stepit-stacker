@@ -9,6 +9,8 @@ pipeline makes them:
     2_merged/<angle>.tif   the merged image, 16-bit, linear Rec.2020
     3_graded/<angle>.tif   the graded image, 16-bit, sRGB: the sequence
     4_quilt/<session>_qs8x6a0.75.png
+                           and, while the rig shoots, the quilt of the angles
+                           done so far: <session>_preview_qs8x6a0.75.png
     grade.xmp              the session's own grading, if it has one
 """
 
@@ -60,6 +62,11 @@ class Session:
 
     def quilt(self, quilt):
         return self.folder / QUILT_FOLDER / f"{self.name}_qs{quilt.columns}x{quilt.rows}a{quilt.aspect:.4g}.png"
+
+    def preview(self, quilt):
+        """The quilt of the angles graded so far, while the rig shoots: not the session's quilt, whose presence says
+        that the session is done."""
+        return self.folder / QUILT_FOLDER / f"{self.name}_preview_qs{quilt.columns}x{quilt.rows}a{quilt.aspect:.4g}.png"
 
     def grade_xmp(self, config):
         """The session's own grading, or the default one."""
