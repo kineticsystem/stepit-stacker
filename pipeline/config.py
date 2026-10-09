@@ -33,6 +33,7 @@ class Config:
     mirror: Path
     rotate: int
     quilt: Quilt
+    display_url: str = ""
     develop_xmp: Path = CONFIG / "develop.xmp"
     grade_xmp: Path = CONFIG / "grade.xmp"
 
@@ -48,4 +49,5 @@ def load(path=CONFIG / "pipeline.toml"):
         mirror=mirror if mirror.is_absolute() else REPO / mirror,
         rotate=settings["images"]["rotate"],
         quilt=Quilt(**settings["quilt"]),
+        display_url=settings["display"]["url"],
     )
