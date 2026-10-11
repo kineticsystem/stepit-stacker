@@ -50,6 +50,7 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 | `pictures.mirror` | `pictures` | Where the rig's pictures are copied and every image of a session is saved: relative to the repo, or absolute. Git ignores `pictures`. |
 | `images.rotate` | `90` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. On the rig, the stage's turn moves the subject up and down in the sensor's picture, and the Portrait shows its views from side to side: 90 makes the turn sideways. |
 | `quilt.reverse` | `false` | The views go from the last angle to the first, right for the rig's stage. Set it to `true` if the depth on the Portrait looks inside out. |
+| `quilt.interpolation` | `nearest` | How a view between two angles is made: `nearest` warps the nearer angle toward it along the optical flow; `blend` warps both and blends them, which shows ghosts where the flow fails, e.g. thin legs crossing. |
 | `display.url` | `http://holo.local:8095` | StepIt Holo's server, which shows each quilt on the Portrait. |
 | `display.progress` | `true` | While the rig shoots, shows the quilt of the angles done so far: flat after the first angle, with depth from the second. `false` leaves the last session on the Portrait until the new one is complete. |
 

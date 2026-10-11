@@ -198,7 +198,7 @@ A pair that cannot be matched stops the merge with `frame N cannot be aligned wi
 [`quilt.py`](../pipeline/quilt.py) makes the quilt for the Portrait from the graded images, in the order of the angles:
 
 1. Each image is cropped at its centre to the aspect of a view, 3:4, and scaled down to a view, 420 × 560.
-2. The views are retimed to the 48 of the quilt. A view between two angles is made from both: each is warped toward it along the dense optical flow between them, OpenCV's Farneback, and the two are blended. The first and last views are the first and last angles.
+2. The views are retimed to the 48 of the quilt. A view between two angles is the nearer angle, warped toward it along the dense optical flow between them, OpenCV's Farneback. The first and last views are the first and last angles. With `quilt.interpolation = "blend"`, both angles are warped toward it and blended, weighted by how near each is, as Twixtor's Motion Weighted Blend does: where the flow is right, the two land on each other, but where it fails, e.g. thin legs crossing, the blend shows both, a ghost. `nearest`, the default, as Twixtor's Nearest, turns that ghost into a distortion of one angle.
 3. The views are placed from the bottom left to the top right, the leftmost first, as Looking Glass expects: view 0 is the bottom left, rows go up.
 4. The quilt is saved as an 8-bit PNG named `<session>_qs8x6a0.75.png`, which tells its layout to Looking Glass's tools.
 
@@ -396,7 +396,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **16-bit TIFF between the steps, not DNG or float.** The 5D Mark II records 14 bits, which 16 hold. Every tool reads TIFF with an ICC profile. The white balance and the exposure are set in the camera and the same in every file of a session, so a DNG's raw white balance would rarely be needed.
 
-**The quilt's views are made between the angles.** A session has fewer angles than the 48 views. Shooting 48 angles is the clean way; optical flow fills the gap at the price of ghosts where it fails, e.g. thin legs crossing.
+**The quilt's views are made between the angles.** A session has fewer angles than the 48 views. Shooting 48 angles is the clean way; optical flow fills the gap at the price of distortions where it fails, e.g. thin legs crossing, or ghosts with `quilt.interpolation = "blend"`.
 
 **StepIt Holo for the display, not Looking Glass's software.** Looking Glass Bridge 2.6.3, with LKG-Toolkit to play the quilt, showed every quilt flat on this PC, as a grid of views, in the container and installed on Ubuntu alike, whatever the scaling, the GPU driver or the window's position, and it is built for x86 only. StepIt Holo does the interleaving itself, from published math and the Portrait's own calibration, and is open source. It is a project of its own, so that anyone with a Portrait can use it.
 
