@@ -17,6 +17,8 @@ What StepIt Stacker still needs. The goal is a sequence of high-quality images, 
   - [7. The Mirror Only Grows](#7-the-mirror-only-grows)
 - [Quality](#quality)
   - [8. Tests of the Watcher and the Display](#8-tests-of-the-watcher-and-the-display)
+- [Grading](#grading)
+  - [9. darktable's Editor Is Hard to Use](#9-darktables-editor-is-hard-to-use)
 
 ## For the Image Sequence
 
@@ -87,3 +89,19 @@ The mirror keeps every raw file, about 300 MB per angle, and each angle adds a m
 - A test of the watcher's link to the rig's topics: `test_rig.py` tests the copy over HTTP against a stand-in for StepIt Camera's web server, but the WebSocket is untested. The topics through a rosbridge, as a script.
 - A test of the development and the grading on a real CR2 of the rig, in the repo.
 - A GitHub Actions workflow that builds the image and runs them.
+
+## Grading
+
+### 9. darktable's Editor Is Hard to Use
+
+The grading is made by hand in darktable's editor, `./bin/pipeline.sh edit`, and applied to every angle by `darktable-cli`. darktable is powerful but hard to use for a quick edit of exposure, highlights, shadows and colour temperature. An editor like Lightroom would do, as long as it saves its edit as a file that a command line tool applies, unchanged, to every merged image. The candidates:
+
+| Editor | The edit, saved as | Applied by | To check |
+|---|---|---|---|
+| [RapidRAW](https://github.com/CyberTimon/RapidRAW) | `.rrdata` sidecar, or a JSON of adjustments | `rapidraw export --adjustments <file>`, headless, 16-bit TIFF | The closest to Lightroom. Does it read the merged image's ICC profile, linear Rec. 2020, or take it for sRGB? It renders on the GPU: does the headless export run in the container? A young project: pin its version. |
+| [ART](https://github.com/artraweditor/ART) | `.arp` profile, plain text | `ART-cli -p <profile> -t16`, 16-bit TIFF | Simpler than RawTherapee, which it forks. Not in Ubuntu's packages: a pinned release in the image. |
+| [RawTherapee](https://www.rawtherapee.com/) | `.pp3` profile, plain text | `rawtherapee-cli -p <profile> -t16`, 16-bit TIFF | In Ubuntu's packages. Its editor is closer to darktable's than to Lightroom's. |
+
+The edit is made on the merged image of the angle closest to 0°, as now, not on a raw frame: the pipeline grades merged images, and a profile made on a raw file carries raw settings, e.g. its demosaicing and raw white balance, that do not apply to a TIFF. Keep to edits of the whole image: a mask stays in place while the subject turns.
+
+To try one: open a `2_merged/*.tif` of a session in it, check that it looks as in darktable, save an edit, apply it with its command line tool in the container, and compare with the editor's own result. Then `pipeline/darktable.py`'s `grade()` and `edit()` get a counterpart for it, and `config/grade.xmp` its own default edit.
