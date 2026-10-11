@@ -66,7 +66,7 @@ The view cone of the Portrait is about 58°, the rig's ±8° far less: the depth
 
 ### 5. The Hot Pixels Were Not Checked on the Rig's Frames
 
-darktable's hot pixels module repairs them with its default threshold and strength, in `config/develop.xmp`. On the rig's 5D Mark II at ISO 800 and 0.8 s, frames had 100 to 250 defective pixels, about 160 of them at the same positions across frames of different subjects. Check that the module repairs them, at the rig's ISO and exposures, without eating real detail: the matte top of a chip sparkles at the scale of a single pixel, and must stay. darktable's module works on single pixels, and may leave glints, small specular highlights spread over a few pixels.
+raw-convert repairs them: those that stand out in each frame, in units of the frame's noise, and the camera's known defects of `config/defects.txt`, which is not made yet. On the rig's 5D Mark II at ISO 800 and 0.8 s, frames had 100 to 250 defective pixels, about 160 of them at the same positions across frames of different subjects; 10 frames at ISO 400 had 703 repaired. Make `config/defects.txt` from photos of several scenes (see the README), then check on a session, at 100%, that the frames have no bright pixel left, and that real detail is intact: the matte top of a chip sparkles at the scale of a single pixel, and must stay. raw-convert leaves alone what spreads over several pixels, e.g. glints.
 
 ## The Watcher
 

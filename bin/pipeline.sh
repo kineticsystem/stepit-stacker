@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # Runs the pipeline, pipeline/, in its container, stepit-pipeline, which can
-# draw on the screen, for darktable. See README.md.
+# draw on the screen, for darktable's editor. See README.md.
 #
 #   ./bin/pipeline.sh start                    build, then start the container and its watcher
 #   ./bin/pipeline.sh stop
@@ -18,6 +18,8 @@ image="${STACK_IMAGE:-stepit-stacker}"
 name="stepit-pipeline"
 
 function start() {
+    # The raw-converter module, which a plain clone leaves empty.
+    git -C "$repo" submodule update --init --recursive
     # Builds the layers of the Dockerfile that changed, if any, then the programs.
     "$repo/docker/dock.sh" "$image" build > /dev/null
     docker run --rm -v "$repo:/home/developer/ws" "$image:latest" build.sh > /dev/null

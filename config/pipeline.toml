@@ -19,6 +19,13 @@ mirror = "pictures"
 [images]
 rotate = 90
 
+# The development of the raw frames, by raw-convert: the hot and dead pixels
+# it finds in each frame are repaired, and so are the camera's known defects,
+# listed in this file if it exists. Make it once from photos of several
+# different scenes, see README.md.
+[develop]
+defect_map = "config/defects.txt"
+
 # The quilt for the Looking Glass Portrait: 8 x 6 views of 420 x 560 pixels.
 # The views go from the last angle of the session to the first, which is right
 # for the rig's stage. Set reverse to true if the depth looks inside out.

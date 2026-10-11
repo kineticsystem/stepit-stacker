@@ -8,6 +8,14 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Every program in ./build, which is on the PATH in the container.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+
+# raw-convert, of the raw-converter module, develops the raw frames: their bad
+# pixels repaired, demosaiced into linear 16-bit TIFFs, see docs/ARCHITECTURE.md.
+set(RAWCONV_BUILD_APP ON CACHE BOOL "Build raw-convert" FORCE)
+add_subdirectory(modules/raw-converter)
+
 find_package(OpenCV REQUIRED COMPONENTS core imgproc video)
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)

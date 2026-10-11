@@ -1,7 +1,7 @@
-"""The two darktable steps, run with darktable-cli.
+"""The darktable steps: the grading, run with darktable-cli, and its edit, in darktable's window.
 
-develop(): raw frames to 16-bit TIFF, linear Rec.2020, with develop.xmp.
 grade():   a merged image to 16-bit TIFF, sRGB, with a grading XMP.
+edit():    the edit of a grading XMP, in darktable's window.
 
 Every run gets a fresh darktable configuration, so the settings of the
 darktable used by hand never change what the pipeline does.
@@ -13,14 +13,6 @@ import tempfile
 from pathlib import Path
 
 
-# 16-bit TIFF. The chromatic adaptation "legacy" makes darktable use the white
-# balance the camera recorded, and the workflow "none" stops it from adding its
-# default exposure and tone curve to the frames.
-DEVELOP_SETTINGS = [
-    "plugins/imageio/format/tiff/bpp=16",
-    "plugins/darkroom/chromatic-adaptation=legacy",
-    "plugins/darkroom/workflow=none",
-]
 GRADE_SETTINGS = ["plugins/imageio/format/tiff/bpp=16"]
 
 
@@ -35,18 +27,6 @@ def _run(inputs, xmp, output, icc, settings):
         result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"darktable-cli failed: {result.stdout[-2000:]}{result.stderr[-2000:]}")
-
-
-def develop(raws, folder, xmp):
-    """Develops the raw frames into folder/<name>.tif, and returns those files in the same order."""
-    folder.mkdir(parents=True, exist_ok=True)
-    # $(FILE_NAME) is darktable's variable for the name of each input, without its extension.
-    _run(raws, xmp, folder / "$(FILE_NAME)", "LIN_REC2020", DEVELOP_SETTINGS)
-    developed = [folder / f"{raw.stem}.tif" for raw in raws]
-    missing = [path.name for path in developed if not path.exists()]
-    if missing:
-        raise RuntimeError(f"darktable did not develop {', '.join(missing)}")
-    return developed
 
 
 def grade(merged, graded, xmp):

@@ -5,6 +5,7 @@
 - [Introduction](#introduction)
 - [Prerequisites](#prerequisites)
 - [Configure](#configure)
+  - [The Camera's Known Defects](#the-cameras-known-defects)
 - [Run](#run)
   - [Follow the Rig](#follow-the-rig)
   - [Process a Session on Disk](#process-a-session-on-disk)
@@ -21,7 +22,7 @@ StepIt Stacker turns each session of the StepIt Macro rig, a focus stack at ever
 
 For each angle, as soon as the rig has shot it:
 
-1. **Develop.** darktable turns every raw frame (CR2) into a 16-bit linear TIFF, repairing the hot pixels.
+1. **Develop.** `raw-convert`, of our module [raw-converter](https://github.com/kineticsystem/raw-converter), turns every raw frame (CR2) into a 16-bit linear TIFF, repairing the hot and dead pixels.
 2. **Merge.** `focus-merge` aligns the frames and merges them into one 16-bit image that is sharp everywhere.
 3. **Grade.** darktable grades the merged image with a grading saved from darktable's own editor.
 
@@ -48,16 +49,25 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 | `rig.port` | `9090` | The commander's rosbridge, where the rig announces each finished angle. |
 | `rig.pictures_port` | `8090` | StepIt Camera's web server on the rig, which serves the rig's pictures folder at `/pictures/`. |
 | `pictures.mirror` | `pictures` | Where the rig's pictures are copied and every image of a session is saved: relative to the repo, or absolute. Git ignores `pictures`. |
+| `develop.defect_map` | `config/defects.txt` | The camera's known defects, repaired in every frame, when the file exists. See [The Camera's Known Defects](#the-cameras-known-defects). |
 | `images.rotate` | `90` | Turns every merged image clockwise by 0, 90, 180 or 270 degrees. 0 keeps it as the sensor sees it, landscape. On the rig, the stage's turn moves the subject up and down in the sensor's picture, and the Portrait shows its views from side to side: 90 makes the turn sideways. |
 | `quilt.reverse` | `false` | The views go from the last angle to the first, right for the rig's stage. Set it to `true` if the depth on the Portrait looks inside out. |
 | `quilt.interpolation` | `nearest` | How a view between two angles is made: `nearest` warps the nearer angle toward it along the optical flow; `blend` warps both and blends them, which shows ghosts where the flow fails, e.g. thin legs crossing. |
 | `display.url` | `http://holo.local:8095` | StepIt Holo's server, which shows each quilt on the Portrait. |
 | `display.progress` | `true` | While the rig shoots, shows the quilt of the angles done so far: flat after the first angle, with depth from the second. `false` leaves the last session on the Portrait until the new one is complete. |
 
-The other settings of `[quilt]` are those of the Portrait. Two darktable files in `config/` set how the images are developed and graded:
+The other settings of `[quilt]` are those of the Portrait. A darktable file in `config/` sets how the images are graded: [`grade.xmp`](config/grade.xmp) grades a session that has no grading of its own: darktable's default look for a raw file, +0.7 EV and filmic. Replace it with your own, see [Grade a Session by Hand](#grade-a-session-by-hand).
 
-- [`develop.xmp`](config/develop.xmp) develops every raw frame. It is fixed, see [Develop](docs/ARCHITECTURE.md#1-develop).
-- [`grade.xmp`](config/grade.xmp) grades a session that has no grading of its own: darktable's default look for a raw file, +0.7 EV and filmic. Replace it with your own, see [Grade a Session by Hand](#grade-a-session-by-hand).
+### The Camera's Known Defects
+
+The development repairs the hot and dead pixels it finds in each frame. A faint one, a warm pixel only a few times brighter than its neighbours, could also be detail of the subject: it is repaired only once photos of different scenes show it. Each angle is one scene, so learn them once, from 10 or more photos of different scenes taken with the rig's camera, at the rig's ISO and exposure, e.g. a dark frame with the lens cap on, and a few of anything. With the pipeline running, and the photos in a folder of the home:
+
+```bash
+docker exec -w /home/developer/ws stepit-pipeline \
+    raw-convert --bad-pixels batch --defect-map config/defects.txt ~/Pictures/rig-defects /tmp/defects
+```
+
+`config/defects.txt` lists the defects found in at least two scenes, by camera body. Without it, the development repairs the defects that stand out in each frame alone.
 
 ## Run
 
@@ -69,14 +79,14 @@ Start the pipeline after logging in to the desktop, as darktable's editor, for `
 ./bin/pipeline.sh start
 ```
 
-The first start builds the image and `focus-merge`, which takes a few minutes. Then the container `stepit-pipeline` follows the rig. Each time the rig finishes an angle, it copies the angle into `pictures`, then develops, merges and grades it. While the rig shoots, it shows on the Portrait the quilt of the angles done so far: flat after the first angle, then with a depth that grows as the stage turns. When the rig has shot the whole session, it builds the quilt and shows it on the Portrait, where it stays until the next session replaces it. Nothing goes back to the rig.
+The first start fetches the raw-converter module, and builds the image, `raw-convert` and `focus-merge`, which takes a few minutes. Then the container `stepit-pipeline` follows the rig. Each time the rig finishes an angle, it copies the angle into `pictures`, then develops, merges and grades it. While the rig shoots, it shows on the Portrait the quilt of the angles done so far: flat after the first angle, then with a depth that grows as the stage turns. When the rig has shot the whole session, it builds the quilt and shows it on the Portrait, where it stays until the next session replaces it. Nothing goes back to the rig.
 
 ```bash
 ./bin/pipeline.sh logs     # follow what it does
 ./bin/pipeline.sh stop
 ```
 
-An angle of 3 frames takes about 20 seconds on this PC, the quilt about 10 seconds.
+An angle of 10 frames takes about 25 seconds on this PC, the quilt about 10 seconds.
 
 ### Process a Session on Disk
 
@@ -152,7 +162,7 @@ To change the code, start the development container with a shell:
 ./docker/dock.sh stepit-stacker start
 ```
 
-The repo is mounted at `~/ws`, with `~/ws/bin` and `~/ws/build` on the `PATH`. `build.sh` builds `focus-merge` into `build`, and `python3 -m pipeline` runs the pipeline's commands. The home of the host user is mounted at its own path, so the pictures are found at their usual path.
+The repo is mounted at `~/ws`, with `~/ws/bin` and `~/ws/build` on the `PATH`. `build.sh` builds `raw-convert` and `focus-merge` into `build`, and `python3 -m pipeline` runs the pipeline's commands. The home of the host user is mounted at its own path, so the pictures are found at their usual path.
 
 > [!IMPORTANT]
 > The container's user is `developer`, with password `developer`.
@@ -183,7 +193,10 @@ StepIt Stacker is released under the MIT licence, see [`LICENSE`](LICENSE), and 
 
 | Software | Licence | Role |
 |---|---|---|
-| [darktable](https://www.darktable.org/) | GPL 3 | Develops and grades the images. It runs as a separate program. |
+| [raw-converter](https://github.com/kineticsystem/raw-converter) | MIT | Develops the raw frames: `raw-convert`, our own module, built from source. |
+| [LibRaw](https://www.libraw.org/) | LGPL 2.1 or CDDL 1.0 | Decodes and demosaics the raw frames, in `raw-convert`, linked dynamically. |
+| [Little CMS](https://www.littlecms.com/) | MIT | Makes the ICC profiles of the developed frames, in `raw-convert`. |
+| [darktable](https://www.darktable.org/) | GPL 3 | Grades the images. It runs as a separate program. |
 | [OpenCV](https://opencv.org/) | Apache 2.0 | Aligns and merges the frames, and makes the quilt. |
 | [libtiff](https://libtiff.gitlab.io/libtiff/) | libtiff licence, BSD-like | Reads and writes the 16-bit TIFFs. |
 | [StepIt Holo](https://github.com/kineticsystem/stepit-holo) | MIT | Shows the quilt on the Portrait. It runs as a server of its own, on the computer of the Portrait. |

@@ -36,7 +36,7 @@ class Config:
     quilt: Quilt
     display_url: str = ""
     display_progress: bool = False
-    develop_xmp: Path = CONFIG / "develop.xmp"
+    defect_map: Path = CONFIG / "defects.txt"
     grade_xmp: Path = CONFIG / "grade.xmp"
 
 
@@ -47,6 +47,7 @@ def load(path=CONFIG / "pipeline.toml"):
     with open(path, "rb") as file:
         settings = tomllib.load(file)
     mirror = Path(settings["pictures"]["mirror"]).expanduser()
+    defect_map = Path(settings.get("develop", {}).get("defect_map", "config/defects.txt")).expanduser()
     interpolation = settings["quilt"].get("interpolation", "nearest")
     if interpolation not in INTERPOLATIONS:
         raise ValueError(f"quilt.interpolation is {interpolation!r}, not one of {', '.join(INTERPOLATIONS)}")
@@ -59,4 +60,5 @@ def load(path=CONFIG / "pipeline.toml"):
         quilt=Quilt(**settings["quilt"]),
         display_url=settings["display"]["url"],
         display_progress=settings["display"].get("progress", False),
+        defect_map=defect_map if defect_map.is_absolute() else REPO / defect_map,
     )

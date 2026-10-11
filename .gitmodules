@@ -1,0 +1,3 @@
+[submodule "modules/raw-converter"]
+	path = modules/raw-converter
+	url = https://github.com/kineticsystem/raw-converter.git

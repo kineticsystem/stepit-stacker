@@ -29,7 +29,7 @@ It follows one idea: **the rig only shoots, and says when an angle and a session
 
 ## The Big Picture
 
-StepIt Stacker is a Python package, `pipeline`, that chains other programs: darktable for the development and the grading, `focus-merge`, our C++ program, for the merge, and StepIt Holo, our module, for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
+StepIt Stacker is a Python package, `pipeline`, that chains other programs: `raw-convert`, of our module [raw-converter](https://github.com/kineticsystem/raw-converter), for the development, `focus-merge`, our C++ program, for the merge, darktable for the grading, and StepIt Holo, our module, for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
 
 ```mermaid
 ---
@@ -100,7 +100,7 @@ flowchart TB
     end
     subgraph PC["This computer, container stepit-pipeline"]
         Watcher["Watcher<br/>pipeline/watch.py"]
-        Develop["1 · Develop<br/>darktable-cli, develop.xmp"]
+        Develop["1 · Develop<br/>raw-convert"]
         Merge["2 · Merge<br/>focus-merge"]
         Grade["3 · Grade<br/>darktable-cli, grade.xmp"]
         Quilt["4 · Quilt"]
@@ -139,15 +139,17 @@ What StepIt Stacker uses of the rig:
 | [`pipeline/watch.py`](../pipeline/watch.py) | The watcher: one angle or session at a time, as the rig announces them: each angle's steps 1 to 3, and each session's quilt. |
 | [`pipeline/rig.py`](../pipeline/rig.py) | The rig: its topics through rosbridge, its pictures over HTTP. |
 | [`pipeline/process.py`](../pipeline/process.py) | The steps chained, for an angle and for a session. |
-| [`pipeline/darktable.py`](../pipeline/darktable.py) | Steps 1 and 3, with `darktable-cli`, and darktable's window for `edit`. |
+| [`pipeline/develop.py`](../pipeline/develop.py) | Step 1: runs `raw-convert`. |
+| [`pipeline/darktable.py`](../pipeline/darktable.py) | Step 3, with `darktable-cli`, and darktable's window for `edit`. |
 | [`pipeline/merge.py`](../pipeline/merge.py) | Step 2: runs `focus-merge`. |
 | [`pipeline/quilt.py`](../pipeline/quilt.py) | Step 4. |
 | [`pipeline/display.py`](../pipeline/display.py) | Step 5: uploads the quilt to StepIt Holo's server. |
 | [`pipeline/layout.py`](../pipeline/layout.py) | Where the files of a session are. |
 | [`pipeline/config.py`](../pipeline/config.py) | Reads `config/pipeline.toml`. |
 | [`src/`](../src) | `focus-merge`: `tiff_io` reads and writes the 16-bit TIFFs, `align` aligns the frames, `fuse` merges them, `main` chains them. |
-| [`config/`](../config) | `pipeline.toml`, `develop.xmp`, `grade.xmp`. |
-| [`tests/`](../tests) | `focus-merge` on a synthetic focus stack, and the quilt. |
+| [`config/`](../config) | `pipeline.toml`, `grade.xmp`, and `defects.txt`, the camera's known defects, when made. |
+| [`modules/raw-converter/`](https://github.com/kineticsystem/raw-converter) | A Git submodule, our raw converter: `raw-convert`, built with the rest. |
+| [`tests/`](../tests) | `focus-merge` on a synthetic focus stack, the develop step, the quilt, the watcher, the rig and the display. |
 | [`docker/`](../docker) | The image, and the development container. |
 
 ## The Pipeline
@@ -156,19 +158,20 @@ What StepIt Stacker uses of the rig:
 
 ### 1. Develop
 
-`darktable-cli` develops every raw frame of the angle, in one run, into a 16-bit TIFF with the settings of [`config/develop.xmp`](../config/develop.xmp). The frames come out:
+`raw-convert --format tiff --colour-space rec2020 --bad-pixels image` develops every raw frame of the angle, in one run, into a 16-bit TIFF, several frames at a time. [`develop.py`](../pipeline/develop.py) gives it a folder of links to the angle's frames, as it takes a file or a folder. The frames come out:
 
-- **Linear.** No exposure, no tone curve, no sharpening, nothing but darktable's basic raw steps: the sensor's values, with nothing clipped. On a frame of the 5D Mark II the brightest pixel is at about a third of the 16-bit range.
+- **Linear.** Demosaiced by LibRaw, with nothing else: no exposure, no tone curve, no sharpening, no noise reduction. The sensor's clipping level is 65535.
 - **In linear Rec.2020,** with the ICC profile embedded: a gamut wide enough that no colour is clipped before the grading.
-- **With the hot pixels repaired,** by darktable's hot pixels module, on the raw data, before demosaicing, where a defect is still a single photosite.
+- **With the hot and dead pixels repaired,** on the raw data, before demosaicing, where a defect is still a single photosite. raw-convert finds them in each frame in units of the frame's own noise, and leaves alone what spreads over several pixels, e.g. the glints of a chip. The camera's known defects, listed in `config/defects.txt` when the file exists, are repaired in every frame too: raw-convert writes back the map it is given, so it gets a copy, and the map is only ever read. The log says how many pixels each angle had repaired: 703 in 10 frames of a 5D Mark II session at ISO 400.
 - **With the white balance the camera recorded,** the same in every file of a session.
-- **As the sensor sees them, landscape.** The camera's orientation is ignored. The 5D Mark II decides it with a tilt sensor, which cannot tell which way is up when the camera points down at the subject, as it does on the rig: on one session, an angle had 6 frames flagged landscape and 6 portrait, even with Auto rotate off. Frames turned by their own flags could not be aligned. `images.rotate` turns the merged image instead, the same way for every angle. On the rig it is 90: the stage's turn moves the subject up and down in the sensor's picture, by about 58 pixels between the first and the middle angle of a ±17° session against 10 sideways, and the Portrait shows its views from side to side. Without the turn, the head moving sideways sees the subject slide up and down, a moving picture rather than depth. Turned upright, a 3:2 picture also keeps more of itself in the Portrait's 3:4.
+- **At the camera's own size,** 5616 × 3744 for the 5D Mark II, its default crop.
+- **As the sensor sees them, landscape.** The camera's orientation is only a tag in the file, which `focus-merge` ignores. The 5D Mark II decides it with a tilt sensor, which cannot tell which way is up when the camera points down at the subject, as it does on the rig: on one session, an angle had 6 frames flagged landscape and 6 portrait, even with Auto rotate off. Frames turned by their own flags could not be aligned. `images.rotate` turns the merged image instead, the same way for every angle. On the rig it is 90: the stage's turn moves the subject up and down in the sensor's picture, by about 58 pixels between the first and the middle angle of a ±17° session against 10 sideways, and the Portrait shows its views from side to side. Without the turn, the head moving sideways sees the subject slide up and down, a moving picture rather than depth. Turned upright, a 3:2 picture also keeps more of itself in the Portrait's 3:4.
 
-`develop.xmp` lists only what it changes: the hot pixels module on, the orientation off. darktable fills in its basic steps for each file, e.g. the white balance of that file. Three settings given on the command line complete it: 16-bit TIFF, the white balance the camera recorded ("legacy" chromatic adaptation), and no default exposure and tone curve (workflow "none").
+10 frames of the 5D Mark II take 6 to 9 seconds; 3 took 2.5 seconds, against 5.4 with darktable. They come out within 1% of darktable's frames, channel by channel, and the merged and graded image looks the same. Each frame in flight takes about 600 MB of memory, and raw-convert develops up to 8 at a time.
 
-**Every run gets a fresh darktable configuration**, a temporary folder, so the settings of the darktable used by hand never change what the pipeline does. An XMP file for `darktable-cli` must not hold comments: darktable cannot open it then.
+The developed frames, about 126 MB each, are in a hidden temporary folder of the session, deleted once merged.
 
-The developed frames, about 100 MB each, are in a hidden temporary folder of the session, deleted once merged.
+**The camera's known defects.** A faint defect, a warm pixel only a few times brighter than its neighbours, cannot be told from detail in one scene: raw-convert repairs it once photos of different scenes show it. Each angle is one scene, so the pipeline cannot learn them: they are learnt once, from photos of several scenes, see the README.
 
 ### 2. Merge
 
@@ -189,7 +192,7 @@ A pair that cannot be matched stops the merge with `frame N cannot be aligned wi
 
 ### 3. Grade
 
-`darktable-cli` grades the merged image with the session's `grade.xmp`, or `config/grade.xmp` when the session has none, into a 16-bit TIFF in sRGB: the image of the sequence. darktable never overwrites a file, so it exports into a temporary folder, and the result replaces the graded image.
+`darktable-cli` grades the merged image, reading its colours from its ICC profile, with the session's `grade.xmp`, or `config/grade.xmp` when the session has none, into a 16-bit TIFF in sRGB: the image of the sequence. darktable never overwrites a file, so it exports into a temporary folder, and the result replaces the graded image.
 
 `./bin/pipeline.sh edit` makes a session's `grade.xmp` with darktable's window: it copies the current grading next to the merged image of the angle closest to 0°, as `<image>.xmp`, the sidecar darktable reads an image's edit from, and opens darktable on it, with a library in memory, so that darktable always reads the sidecar. darktable saves every change there. Once darktable is closed, the sidecar becomes the session's `grade.xmp`, and every angle is graded again.
 
@@ -341,7 +344,9 @@ A session that stops halfway, e.g. at a shot whose picture did not come, gets no
 
 ## The Containers
 
-One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, darktable, OpenCV, libtiff, Python with OpenCV and `python3-websocket`, and `libnss-mdns`. The image runs in two ways:
+One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, LibRaw and Little CMS for raw-convert, darktable, OpenCV, libtiff, Python with OpenCV and `python3-websocket`, and `libnss-mdns`. `build.sh` builds `raw-convert` and `focus-merge` into `build`.
+
+`modules/raw-converter` is a Git submodule. `./bin/pipeline.sh start` fetches it from its public repository before building. The image runs in two ways:
 
 | Container | Started by | What it mounts |
 |---|---|---|
@@ -358,6 +363,7 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 
 | Test | What it checks |
 |---|---|
+| [`test_develop.py`](../tests/test_develop.py) | The develop step against a stand-in for `raw-convert`: the frames in order, the angle's other files left out, the bad pixels counted, the defect map given as a copy and left untouched, no map when there is none, a failure and a missing frame reported. raw-convert's own tests run in its repo. |
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
 | [`test_process.py`](../tests/test_process.py) | The preview with real quilts and a stand-in for the display: none without an angle, one angle shown flat, none when the session's quilt was built meanwhile, the quilt of the angles done so far under its own name, removed by the session's quilt, none once the session is done, and a display that fails, which does not fail the angle. |
@@ -369,7 +375,7 @@ Checked by hand, to repeat after a change to each part:
 
 | Part | How to check it |
 |---|---|
-| Develop | The developed frame is linear: its brightest pixels well below 65535, its ICC profile "Linear Rec2020 RGB". |
+| Develop | `./bin/pipeline.sh logs` says how many bad pixels each angle had repaired. A developed frame is linear, at the camera's size, its ICC profile "Linear Rec. 2020". At 100% in darktable, the frame has no isolated bright pixel left, and the fine detail of the subject is intact. |
 | Grade | `./bin/pipeline.sh edit` on a session: darktable opens with the current grading, and closing it grades every angle. |
 | The watcher | Start it, shoot a FocusStack, follow `./bin/pipeline.sh logs`: each angle is queued as `announced by the rig`, processed, then the session, and the quilt is shown at the end. Stop it during a session and start it again: the missing angles are queued as `catching up`. The WebSocket has no automated test. |
 | Show | `./bin/pipeline.sh show <quilt.png>` with StepIt Holo's server running and the Portrait attached to it, then look through the lens: one picture with depth, not a grid of views nor a blur. StepIt Holo's sample quilt, `wasp_qs8x6a0.75.jpg`, is the reference. |
@@ -378,7 +384,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 ## How to Extend StepIt Stacker
 
-**Change how every frame is developed.** Open a CR2 in darktable, set the modules, and save the sidecar it writes, `<file>.CR2.xmp`, over `config/develop.xmp`, without comments. Keep the frames linear: no exposure, no tone curve, no sharpening, see [Develop](#1-develop).
+**Change how every frame is developed.** Change the arguments in [`develop.py`](../pipeline/develop.py), e.g. `--colour-space`, or raw-convert itself, in its repo, then update the submodule. Keep the frames linear: no exposure, no tone curve, no sharpening, see [Develop](#1-develop).
 
 **Add a step to each angle, e.g. a depth map.** Add it to `process_angle()` in [`process.py`](../pipeline/process.py), after the merge or the grading, and its file to [`layout.py`](../pipeline/layout.py), in a folder numbered after the one of the step before, e.g. `3_depth` between `2_merged` and the grading, which becomes `4_graded`.
 
@@ -388,7 +394,9 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 ## Design Decisions and Trade-offs
 
-**darktable for the development and the grading.** The grading is made by hand in darktable's editor, and the same engine applies it without the window, from the XMP file the editor saves. darktable reads the 5D Mark II's CR2 files, repairs hot pixels on the raw data, and exports 16-bit TIFF in any colour space. The price is a configuration that must be given on every run, and XMP files tied to darktable's version: the editor and `darktable-cli` are the same darktable, the one of the image.
+**raw-convert for the development.** The development has nothing to edit: it must be linear and the same for every frame. raw-convert does that and only that, with a bad-pixel detector that measures each frame's noise and protects detail spread over several pixels, a map of the camera's known defects, and no configuration to give on every run. It is twice as fast as darktable here. It is our own module, so it changes with the rig's needs. The price: a submodule to fetch.
+
+**darktable for the grading.** The grading is made by hand in darktable's editor, and the same engine applies it without the window, from the XMP file the editor saves. The price is a configuration that must be given on every run, and XMP files tied to darktable's version: the editor and `darktable-cli` are the same darktable, the one of the image.
 
 **focus-merge is our own.** focus-stack, the obvious library, aligns and merges in 8 bits only. `focus-merge` aligns with OpenCV's ECC and merges with a Laplacian pyramid in floating point, a few hundred lines. The price is a merge that is simpler than focus-stack's wavelet merge: fine detail that overlaps, e.g. hairs in front of each other, may come out less clean.
 
@@ -410,6 +418,6 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **Python for the pipeline, C++ for the merge.** The pipeline is glue: a WebSocket, a queue, and other programs. The merge is where the time goes, and is C++ to work with OpenCV directly.
 
-**One angle at a time.** darktable and the merge use every core, so processing two angles at once would be no faster. The rig takes longer to shoot an angle than this computer to process it, so the queue stays short.
+**One angle at a time.** The development and the merge use every core, so processing two angles at once would be no faster. The rig takes longer to shoot an angle than this computer to process it, so the queue stays short.
 
 **The images stay on this computer.** The rig is a source of pictures, and nothing goes back to it: the mirror and the images live in this repo's `pictures` folder, which git ignores.
