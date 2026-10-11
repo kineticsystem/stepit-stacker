@@ -15,6 +15,7 @@ class Quilt:
     view_width: int
     view_height: int
     reverse: bool
+    interpolation: str = "nearest"
 
     @property
     def views(self):
@@ -39,10 +40,16 @@ class Config:
     grade_xmp: Path = CONFIG / "grade.xmp"
 
 
+INTERPOLATIONS = ("nearest", "blend")
+
+
 def load(path=CONFIG / "pipeline.toml"):
     with open(path, "rb") as file:
         settings = tomllib.load(file)
     mirror = Path(settings["pictures"]["mirror"]).expanduser()
+    interpolation = settings["quilt"].get("interpolation", "nearest")
+    if interpolation not in INTERPOLATIONS:
+        raise ValueError(f"quilt.interpolation is {interpolation!r}, not one of {', '.join(INTERPOLATIONS)}")
     return Config(
         rig_host=settings["rig"]["host"],
         rig_port=settings["rig"]["port"],

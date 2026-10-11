@@ -42,6 +42,20 @@ class QuiltTest(unittest.TestCase):
         np.testing.assert_array_equal(result[0], views[0])
         np.testing.assert_array_equal(result[-1], views[-1])
 
+    def test_nearest_shows_no_ghost_where_the_flow_fails(self):
+        def bar(x):
+            """A thin bar, too far from the other angle's for the flow to follow it."""
+            image = np.zeros((QUILT.view_height, QUILT.view_width, 3), np.float32)
+            image[:, x:x + 2] = 1
+            return image
+
+        for interpolation, ghosts in (("blend", True), ("nearest", False)):
+            with self.subTest(interpolation):
+                middle = retime([bar(5), bar(33)], 5, interpolation)[1:-1]
+                # A ghost: the bars of both angles at once, each half bright.
+                half_bright = [np.any((view > 0.2) & (view < 0.8)) for view in middle]
+                self.assertEqual(half_bright, [ghosts] * 3)
+
     def test_repeats_a_single_view(self):
         self.assertEqual(len(retime([numbered(1)], 48)), 48)
 

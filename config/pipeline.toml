@@ -22,12 +22,16 @@ rotate = 90
 # The quilt for the Looking Glass Portrait: 8 x 6 views of 420 x 560 pixels.
 # The views go from the last angle of the session to the first, which is right
 # for the rig's stage. Set reverse to true if the depth looks inside out.
+# A view between two angles is the nearer angle warped toward it along the
+# optical flow, "nearest", or both angles warped and blended, "blend", which
+# shows ghosts where the flow fails.
 [quilt]
 columns = 8
 rows = 6
 view_width = 420
 view_height = 560
 reverse = false
+interpolation = "nearest"
 
 # StepIt Holo's server, which shows each quilt on the Looking Glass Portrait,
 # on holo, the Raspberry Pi the Portrait is plugged into, on port 8095.

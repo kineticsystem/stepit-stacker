@@ -51,7 +51,7 @@ Options:
 
 ### 3. Fewer Angles Than Views
 
-The quilt has 48 views, a session 35 angles. The pipeline makes the missing views between the angles with optical flow, which can show ghosts where the flow fails, e.g. thin legs or hairs crossing each other. Options:
+The quilt has 48 views, a session 35 angles. The pipeline makes the missing views between the angles with optical flow, warping the nearer angle, which can distort the subject where the flow fails, e.g. thin legs or hairs crossing each other; blending both angles showed ghosts there instead. Options:
 
 - **Shoot 48 angles**: the clean way, at the price of a longer session.
 - **A 7 × 5 quilt**, which Looking Glass's tools accept, at the price of larger jumps between views.

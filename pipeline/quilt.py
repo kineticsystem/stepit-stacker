@@ -3,8 +3,9 @@
 1. Every graded image is cropped at its centre to the aspect of a view, 3:4,
    and scaled down to a view, 420 x 560.
 2. The views are retimed to the number of views of the quilt, 48: a view that
-   falls between two angles is made from both, each warped toward it along
-   the optical flow between them, then blended.
+   falls between two angles is made by warping an angle toward it along the
+   optical flow between them. With quilt.interpolation "nearest", only the
+   nearer angle is warped; with "blend", both are, then blended.
 3. The views are placed from the bottom-left to the top-right, the leftmost
    first, as Looking Glass expects, and saved as an 8-bit PNG named
    <session>_qs8x6a0.75.png, which tells its layout to Looking Glass's tools.
@@ -44,8 +45,14 @@ def _warp(image, flow, fraction):
                      borderMode=cv2.BORDER_REPLICATE)
 
 
-def retime(views, count):
-    """`count` views spread evenly from the first view to the last."""
+def retime(views, count, interpolation="nearest"):
+    """`count` views spread evenly from the first view to the last.
+
+    A view between two angles is the nearer angle warped toward it ("nearest"),
+    or both angles warped toward it and blended ("blend"). Where the flow is
+    wrong, e.g. thin legs crossing, "blend" shows the two angles at once, a
+    ghost, and "nearest" a distortion of one.
+    """
     if len(views) == count:
         return list(views)
     if len(views) == 1:
@@ -60,6 +67,8 @@ def retime(views, count):
             result.append(a)
         elif fraction > 1 - 1e-6:
             result.append(b)
+        elif interpolation == "nearest":
+            result.append(_warp(a, _flow(a, b), fraction) if fraction <= 0.5 else _warp(b, _flow(b, a), 1 - fraction))
         else:
             from_a = _warp(a, _flow(a, b), fraction)
             from_b = _warp(b, _flow(b, a), 1 - fraction)
@@ -89,7 +98,7 @@ def build(graded_images, path, quilt):
         views.append(view(image, quilt) / scale)
     if not quilt.reverse:
         views.reverse()
-    grid = assemble(retime(views, quilt.views), quilt)
+    grid = assemble(retime(views, quilt.views, quilt.interpolation), quilt)
     path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(path), np.clip(grid * 255 + 0.5, 0, 255).astype(np.uint8))
     return path
