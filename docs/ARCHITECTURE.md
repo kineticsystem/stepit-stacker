@@ -346,7 +346,7 @@ A session that stops halfway, e.g. at a shot whose picture did not come, gets no
 
 One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, LibRaw and Little CMS for raw-convert, darktable, OpenCV, libtiff, Python with OpenCV and `python3-websocket`, and `libnss-mdns`. `build.sh` builds `raw-convert` and `focus-merge` into `build`.
 
-`modules/raw-converter` is a Git submodule. `./bin/pipeline.sh start` fetches it on the host, which has the keys to its repository, before building. The image runs in two ways:
+`modules/raw-converter` is a Git submodule. `./bin/pipeline.sh start` fetches it from its public repository before building. The image runs in two ways:
 
 | Container | Started by | What it mounts |
 |---|---|---|
@@ -394,7 +394,7 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 ## Design Decisions and Trade-offs
 
-**raw-convert for the development.** The development has nothing to edit: it must be linear and the same for every frame. raw-convert does that and only that, with a bad-pixel detector that measures each frame's noise and protects detail spread over several pixels, a map of the camera's known defects, and no configuration to give on every run. It is twice as fast as darktable here. It is our own module, so it changes with the rig's needs. The price: a submodule to fetch, in a private repository.
+**raw-convert for the development.** The development has nothing to edit: it must be linear and the same for every frame. raw-convert does that and only that, with a bad-pixel detector that measures each frame's noise and protects detail spread over several pixels, a map of the camera's known defects, and no configuration to give on every run. It is twice as fast as darktable here. It is our own module, so it changes with the rig's needs. The price: a submodule to fetch.
 
 **darktable for the grading.** The grading is made by hand in darktable's editor, and the same engine applies it without the window, from the XMP file the editor saves. The price is a configuration that must be given on every run, and XMP files tied to darktable's version: the editor and `darktable-cli` are the same darktable, the one of the image.
 

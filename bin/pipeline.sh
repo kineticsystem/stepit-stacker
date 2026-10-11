@@ -18,8 +18,7 @@ image="${STACK_IMAGE:-stepit-stacker}"
 name="stepit-pipeline"
 
 function start() {
-    # The raw-converter module, which a plain clone leaves empty. Here, on the
-    # host, where the keys to its repository are.
+    # The raw-converter module, which a plain clone leaves empty.
     git -C "$repo" submodule update --init --recursive
     # Builds the layers of the Dockerfile that changed, if any, then the programs.
     "$repo/docker/dock.sh" "$image" build > /dev/null

@@ -35,7 +35,6 @@ How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Prerequisites
 
-- **Access to [raw-converter](https://github.com/kineticsystem/raw-converter)**, a private repository, through an SSH key on GitHub. It is a Git submodule, in `modules/raw-converter`: `./bin/pipeline.sh start` fetches it, or `git clone --recursive`.
 - **A PC with Ubuntu and Docker,** see [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/). Everything runs in a Docker image built from this repo, on this PC, not on the rig.
 - **The rig, on the network** as `stepit.local`: its rosbridge on port 9090, and StepIt Camera's web server on port 8090, which serves its pictures. No key or password is needed. Check it with `curl http://stepit.local:8090/pictures/`.
 - **The Looking Glass Portrait, with StepIt Holo's server,** on the Raspberry Pi the Portrait is plugged into, on HDMI and USB: `holo`, a Raspberry Pi 5 of its own, at `http://holo.local:8095`. See [Run the Server in Docker](https://github.com/kineticsystem/stepit-holo#run-the-server-in-docker) in StepIt Holo's README. Check it with `curl http://holo.local:8095/status`. Without it, the pipeline makes the quilts, and says it cannot show them.
