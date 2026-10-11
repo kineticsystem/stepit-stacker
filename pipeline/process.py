@@ -12,7 +12,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import darktable, display, merge, quilt
+from . import darktable, develop, display, merge, quilt
 from .config import REPO
 from .layout import raw_files
 
@@ -28,10 +28,11 @@ _showing = threading.Lock()
 def process_angle(session, angle, config):
     started = time.monotonic()
     raws = raw_files(angle)
-    # The developed frames, 100 MB each, are only needed for the merge.
+    # The developed frames, 126 MB each, are only needed for the merge.
     with tempfile.TemporaryDirectory(dir=session.folder, prefix=".develop-") as folder:
-        frames = darktable.develop(raws, Path(folder), config.develop_xmp)
-        log.info("%s: developed %d frames in %.0f s", angle.name, len(frames), time.monotonic() - started)
+        frames, bad_pixels = develop.develop(raws, Path(folder), config.defect_map)
+        log.info("%s: developed %d frames in %.0f s, %d bad pixels repaired", angle.name, len(frames),
+                 time.monotonic() - started, bad_pixels)
         merge.merge(frames, session.merged(angle), config.rotate)
         log.info("%s: merged in %.0f s", angle.name, time.monotonic() - started)
     grade_angle(session, angle, config)
