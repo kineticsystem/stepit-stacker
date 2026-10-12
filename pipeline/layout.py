@@ -11,7 +11,6 @@ pipeline makes them:
     4_quilt/<session>_qs8x6a0.75.png
                            and, while the rig shoots, the quilt of the angles
                            done so far: <session>_preview_qs8x6a0.75.png
-    grade.xmp              the session's own grading, if it has one
 """
 
 import re
@@ -67,11 +66,6 @@ class Session:
         """The quilt of the angles graded so far, while the rig shoots: not the session's quilt, whose presence says
         that the session is done."""
         return self.folder / QUILT_FOLDER / f"{self.name}_preview_qs{quilt.columns}x{quilt.rows}a{quilt.aspect:.4g}.png"
-
-    def grade_xmp(self, config):
-        """The session's own grading, or the default one."""
-        own = self.folder / "grade.xmp"
-        return own if own.exists() else config.grade_xmp
 
     def is_processed(self, angle):
         """Whether the angle has a graded image newer than its frames and its stack.json."""

@@ -1,6 +1,6 @@
-# Ubuntu 24.04 with the build tools, darktable and the libraries of the
-# pipeline, for user "developer". The same image builds raw-convert and
-# focus-merge, and runs the pipeline.
+# Ubuntu 24.04 with the build tools and the libraries of the pipeline, for user
+# "developer". The same image builds raw-convert, focus-merge and
+# stepit-grader-cli, and runs the pipeline.
 
 FROM ubuntu:24.04
 
@@ -36,11 +36,13 @@ RUN apt-get -y install clang-format
 
 # raw-convert, of modules/raw-converter, develops with LibRaw and Little CMS;
 # focus-merge aligns and merges with OpenCV and reads and writes the 16-bit
-# TIFFs with libtiff; darktable grades, and the quilt is made with OpenCV for
-# Python. Each layer updates the package lists itself: those of the first layer,
+# TIFFs with libtiff; stepit-grader-cli, of modules/stepit-grader, grades with
+# libtiff, Little CMS and pugixml; the quilt is made with OpenCV for Python.
+# Each layer updates the package lists itself: those of the first layer,
 # cached, can name packages the archive has replaced since.
 RUN apt-get update && apt-get -y install libraw-dev liblcms2-dev
-RUN apt-get update && apt-get -y install darktable libopencv-dev libtiff-dev python3-opencv python3-numpy
+RUN apt-get update && apt-get -y install libopencv-dev libtiff-dev python3-opencv python3-numpy
+RUN apt-get update && apt-get -y install libpugixml-dev
 
 # The watcher, pipeline/watch.py: it follows the rig through its rosbridge,
 # copies each finished angle over HTTP, from StepIt Camera's web server, and

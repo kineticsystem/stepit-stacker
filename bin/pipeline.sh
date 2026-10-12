@@ -1,13 +1,11 @@
 #!/bin/bash -e
 
-# Runs the pipeline, pipeline/, in its container, stepit-pipeline, which can
-# draw on the screen, for darktable's editor. See README.md.
+# Runs the pipeline, pipeline/, in its container, stepit-pipeline. See README.md.
 #
 #   ./bin/pipeline.sh start                    build, then start the container and its watcher
 #   ./bin/pipeline.sh stop
 #   ./bin/pipeline.sh logs                     follow the watcher
 #   ./bin/pipeline.sh session <session>        process a session folder, then show its quilt
-#   ./bin/pipeline.sh edit <session>           edit its grading in darktable, then grade and show it
 #   ./bin/pipeline.sh grade <session>          grade it again, then show it
 #   ./bin/pipeline.sh quilt <session>          build its quilt again, then show it
 #   ./bin/pipeline.sh show <quilt.png>
@@ -18,7 +16,7 @@ image="${STACK_IMAGE:-stepit-stacker}"
 name="stepit-pipeline"
 
 function start() {
-    # The raw-converter module, which a plain clone leaves empty.
+    # The raw-converter and stepit-grader modules, which a plain clone leaves empty.
     git -C "$repo" submodule update --init --recursive
     # Builds the layers of the Dockerfile that changed, if any, then the programs.
     "$repo/docker/dock.sh" "$image" build > /dev/null
@@ -31,12 +29,6 @@ function start() {
         -v "$HOME:$HOME"
         -v /run/avahi-daemon/socket:/run/avahi-daemon/socket
     )
-    # The screen, for darktable's window: the X server of this login.
-    options+=(-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro)
-    if [[ -n "$XAUTHORITY" ]]; then
-        options+=(-v "$XAUTHORITY:/home/developer/.Xauthority:ro" -e XAUTHORITY=/home/developer/.Xauthority)
-    fi
-
     docker rm --force "$name" &> /dev/null || true
     docker run --detach --name "$name" --init "${options[@]}" -w /home/developer/ws "$image:latest" \
         python3 -u -m pipeline watch > /dev/null
@@ -50,7 +42,7 @@ function require_running() {
     fi
 }
 
-# A terminal for the commands when there is one, e.g. for darktable's messages.
+# A terminal for the commands when there is one, e.g. to stop them with Ctrl+C.
 terminal=(-i)
 if [[ -t 0 ]]; then terminal+=(-t); fi
 
@@ -67,7 +59,7 @@ case "$command" in
     logs)
         docker logs --follow --tail 50 "$name"
         ;;
-    session|edit|grade|quilt|show)
+    session|grade|quilt|show)
         require_running
         # The home is mounted at its own path, so a folder is given by its full path.
         path="$(readlink -f "$1")"
@@ -79,7 +71,7 @@ case "$command" in
         docker exec "${terminal[@]}" -w /home/developer/ws "$name" python3 -m unittest discover -v tests
         ;;
     *)
-        sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
         exit 2
         ;;
 esac

@@ -9,7 +9,7 @@
 - [Run](#run)
   - [Follow the Rig](#follow-the-rig)
   - [Process a Session on Disk](#process-a-session-on-disk)
-  - [Grade a Session by Hand](#grade-a-session-by-hand)
+  - [Grade the Sessions](#grade-the-sessions)
   - [The Files of a Session](#the-files-of-a-session)
 - [Commands](#commands)
 - [Work Inside the Container](#work-inside-the-container)
@@ -24,7 +24,7 @@ For each angle, as soon as the rig has shot it:
 
 1. **Develop.** `raw-convert`, of our module [raw-converter](https://github.com/kineticsystem/raw-converter), turns every raw frame (CR2) into a 16-bit linear TIFF, repairing the hot and dead pixels.
 2. **Merge.** `focus-merge` aligns the frames and merges them into one 16-bit image that is sharp everywhere.
-3. **Grade.** darktable grades the merged image with a grading saved from darktable's own editor.
+3. **Grade.** `stepit-grader-cli`, of our module [StepIt Grader](https://github.com/kineticsystem/stepit-grader), grades the merged image with a grading saved from StepIt Grader's editor.
 
 Once the rig has shot the whole session:
 
@@ -56,7 +56,7 @@ The settings are in [`config/pipeline.toml`](config/pipeline.toml):
 | `display.url` | `http://holo.local:8095` | StepIt Holo's server, which shows each quilt on the Portrait. |
 | `display.progress` | `true` | While the rig shoots, shows the quilt of the angles done so far: flat after the first angle, with depth from the second. `false` leaves the last session on the Portrait until the new one is complete. |
 
-The other settings of `[quilt]` are those of the Portrait. A darktable file in `config/` sets how the images are graded: [`grade.xmp`](config/grade.xmp) grades a session that has no grading of its own: darktable's default look for a raw file, +0.7 EV and filmic. Replace it with your own, see [Grade a Session by Hand](#grade-a-session-by-hand).
+The other settings of `[quilt]` are those of the Portrait. One file in `config/` sets how every image of every session is graded: [`grade.xmp`](config/grade.xmp), a sidecar of StepIt Grader. The one in the repo makes no edit: the merged image, only turned into sRGB. Replace it with your own, see [Grade the Sessions](#grade-the-sessions).
 
 ### The Camera's Known Defects
 
@@ -73,13 +73,13 @@ docker exec -w /home/developer/ws stepit-pipeline \
 
 ### Follow the Rig
 
-Start the pipeline after logging in to the desktop, as darktable's editor, for `edit`, draws on the screen of that login:
+Start the pipeline:
 
 ```bash
 ./bin/pipeline.sh start
 ```
 
-The first start fetches the raw-converter module, and builds the image, `raw-convert` and `focus-merge`, which takes a few minutes. Then the container `stepit-pipeline` follows the rig. Each time the rig finishes an angle, it copies the angle into `pictures`, then develops, merges and grades it. While the rig shoots, it shows on the Portrait the quilt of the angles done so far: flat after the first angle, then with a depth that grows as the stage turns. When the rig has shot the whole session, it builds the quilt and shows it on the Portrait, where it stays until the next session replaces it. Nothing goes back to the rig.
+The first start fetches the raw-converter and stepit-grader modules, and builds the image, `raw-convert`, `focus-merge` and `stepit-grader-cli`, which takes a few minutes. Then the container `stepit-pipeline` follows the rig. Each time the rig finishes an angle, it copies the angle into `pictures`, then develops, merges and grades it. While the rig shoots, it shows on the Portrait the quilt of the angles done so far: flat after the first angle, then with a depth that grows as the stage turns. When the rig has shot the whole session, it builds the quilt and shows it on the Portrait, where it stays until the next session replaces it. Nothing goes back to the rig.
 
 ```bash
 ./bin/pipeline.sh logs     # follow what it does
@@ -106,17 +106,21 @@ A session is a folder whose `1_session` holds one folder of raw frames per angle
 
 Angles already processed are skipped, so `session` also finishes a session that was cut short.
 
-### Grade a Session by Hand
+### Grade the Sessions
 
-```bash
-./bin/pipeline.sh edit pictures/2026-10-07_12-29-19
-```
+Every angle of every session is graded with `config/grade.xmp`. To make your own grading, with [StepIt Grader](https://github.com/kineticsystem/stepit-grader) installed on the desktop:
 
-1. darktable opens the merged image of the angle closest to 0°, starting from the session's current grading.
-2. Grade it: exposure, tone equalizer for the shadows and highlights, filmic or sigmoid for the contrast, color balance rgb for the saturation, diffuse or sharpen for the sharpness. Keep to edits of the whole image: a mask or a spot repair stays at the same place in every image while the subject turns.
-3. Close darktable. The edit is saved as `grade.xmp` in the session's folder, every angle is graded with it, and the new quilt is shown.
+1. Open a merged image of a session in StepIt Grader, e.g. that of the angle closest to 0°, `pictures/2026-10-07_12-29-19/2_merged/angle_18_0.0deg.tif`.
+2. Grade it: the white balance, with the eyedropper on something white or grey, the exposure, the contrast, the highlights and shadows, the vibrance and saturation, the sharpness. Every tool works on the whole image: none stays at one place while the subject turns.
+3. Save the settings, `Ctrl+S`: StepIt Grader writes them next to the image, `angle_18_0.0deg.xmp`.
+4. Copy that file over `config/grade.xmp`, and grade the session again:
 
-To start every later session from this grading, copy that `grade.xmp` over `config/grade.xmp`.
+   ```bash
+   cp pictures/2026-10-07_12-29-19/2_merged/angle_18_0.0deg.xmp config/grade.xmp
+   ./bin/pipeline.sh grade pictures/2026-10-07_12-29-19
+   ```
+
+Every later session is graded the same way. To go back to no edit, `git checkout config/grade.xmp`.
 
 ### The Files of a Session
 
@@ -133,7 +137,6 @@ pictures/2026-10-07_12-29-19/
 ├── 4_quilt/2026-10-07_12-29-19_qs8x6a0.75.png
 │                                      while the rig shoots, also ..._preview_qs8x6a0.75.png,
 │                                      the quilt of the angles done so far
-└── grade.xmp                          the session's own grading, after ./bin/pipeline.sh edit
 ```
 
 ## Commands
@@ -146,13 +149,12 @@ pictures/2026-10-07_12-29-19/
 | `stop` | Stops it. |
 | `logs` | Follows what it does. |
 | `session <session>` | Processes every angle of the session not processed yet, then builds and shows its quilt. |
-| `edit <session>` | Opens the session in darktable, then grades every angle with the edit and shows the quilt. |
 | `grade <session>` | Grades every angle again, e.g. after a change to `grade.xmp`, then shows the quilt. |
 | `quilt <session>` | Builds and shows the quilt again. |
 | `show <quilt.png>` | Shows a quilt. |
 | `test` | Runs the tests. |
 
-`session`, `edit`, `grade` and `quilt` take `--no-show` to leave the Portrait as it is.
+`session`, `grade` and `quilt` take `--no-show` to leave the Portrait as it is.
 
 ## Work Inside the Container
 
@@ -196,7 +198,8 @@ StepIt Stacker is released under the MIT licence, see [`LICENSE`](LICENSE), and 
 | [raw-converter](https://github.com/kineticsystem/raw-converter) | MIT | Develops the raw frames: `raw-convert`, our own module, built from source. |
 | [LibRaw](https://www.libraw.org/) | LGPL 2.1 or CDDL 1.0 | Decodes and demosaics the raw frames, in `raw-convert`, linked dynamically. |
 | [Little CMS](https://www.littlecms.com/) | MIT | Makes the ICC profiles of the developed frames, in `raw-convert`. |
-| [darktable](https://www.darktable.org/) | GPL 3 | Grades the images. It runs as a separate program. |
+| [StepIt Grader](https://github.com/kineticsystem/stepit-grader) | MIT | Grades the images: `stepit-grader-cli`, our own module, built from source. |
+| [pugixml](https://pugixml.org/) | MIT | Reads the grading's XMP file, in `stepit-grader-cli`. |
 | [OpenCV](https://opencv.org/) | Apache 2.0 | Aligns and merges the frames, and makes the quilt. |
 | [libtiff](https://libtiff.gitlab.io/libtiff/) | libtiff licence, BSD-like | Reads and writes the 16-bit TIFFs. |
 | [StepIt Holo](https://github.com/kineticsystem/stepit-holo) | MIT | Shows the quilt on the Portrait. It runs as a server of its own, on the computer of the Portrait. |

@@ -1,3 +1,6 @@
 [submodule "modules/raw-converter"]
 	path = modules/raw-converter
 	url = https://github.com/kineticsystem/raw-converter.git
+[submodule "modules/stepit-grader"]
+	path = modules/stepit-grader
+	url = https://github.com/kineticsystem/stepit-grader.git

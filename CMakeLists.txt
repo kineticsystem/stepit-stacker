@@ -16,6 +16,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 set(RAWCONV_BUILD_APP ON CACHE BOOL "Build raw-convert" FORCE)
 add_subdirectory(modules/raw-converter)
 
+# stepit-grader-cli, of the stepit-grader module, grades the merged images with
+# the settings of an XMP sidecar, see docs/ARCHITECTURE.md. Only its command
+# line, which needs no Qt; it shares raw-converter's library, built above.
+add_subdirectory(modules/stepit-grader)
+
 find_package(OpenCV REQUIRED COMPONENTS core imgproc video)
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)

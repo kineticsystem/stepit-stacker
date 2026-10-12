@@ -1,42 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="XMP Core 4.4.0-Exiv2">
+<!--
+  The grading of every merged image, applied by stepit-grader-cli: here, no
+  edit, every value at its default. Replace this file with a sidecar saved by
+  StepIt Grader for one merged image, see README.md.
+-->
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="stepit-grader">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about=""
-    xmlns:darktable="http://darktable.sf.net/"
-   darktable:xmp_version="5"
-   darktable:raw_params="0"
-   darktable:auto_presets_applied="1"
-   darktable:history_end="2"
-   darktable:iop_order_version="2">
-   <darktable:masks_history>
-    <rdf:Seq/>
-   </darktable:masks_history>
-   <darktable:history>
-    <rdf:Seq>
-     <rdf:li
-      darktable:num="0"
-      darktable:operation="exposure"
-      darktable:enabled="1"
-      darktable:modversion="6"
-      darktable:params="00000000000080b93333333f00004842000080c001000000"
-      darktable:multi_name=""
-      darktable:multi_name_hand_edited="0"
-      darktable:multi_priority="0"
-      darktable:blendop_version="13"
-      darktable:blendop_params="gz08eJxjYGBgYAFiCQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dlAx68oBEMbFxwX+AwGIBgCbGCeh"/>
-     <rdf:li
-      darktable:num="1"
-      darktable:operation="filmicrgb"
-      darktable:enabled="1"
-      darktable:modversion="6"
-      darktable:params="gz02eJybNXOy49kzXw60vp7owAAGDkD6hBMEQ8AsoBr9ZRU2IDG1yHQHruvKQHaDPUz+7BkfO2YgzQLEjFAxRiQ2DDBBaQC8LhQY"
-      darktable:multi_name=""
-      darktable:multi_name_hand_edited="0"
-      darktable:multi_priority="0"
-      darktable:blendop_version="13"
-      darktable:blendop_params="gz08eJxjYGBgYAFiCQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dlAx68oBEMbFxwX+AwGIBgCbGCeh"/>
-    </rdf:Seq>
-   </darktable:history>
-  </rdf:Description>
+  <rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+    crs:ProcessVersion="11.0"
+    crs:HasSettings="True"
+    crs:IncrementalTemperature="0"
+    crs:IncrementalTint="0"
+    crs:DefringePurpleAmount="0"
+    crs:DefringePurpleHueLo="30"
+    crs:DefringePurpleHueHi="70"
+    crs:Exposure2012="0.00"
+    crs:Contrast2012="0"
+    crs:Highlights2012="0"
+    crs:Shadows2012="0"
+    crs:Blacks2012="0"
+    crs:Texture="0"
+    crs:Clarity2012="0"
+    crs:Vibrance="0"
+    crs:Saturation="0"
+    crs:HDRToneCompression="0"
+    crs:HDRCompressionPoint="50"
+    crs:HDRLocalContrast="50"
+    crs:Sharpness="0" />
  </rdf:RDF>
 </x:xmpmeta>

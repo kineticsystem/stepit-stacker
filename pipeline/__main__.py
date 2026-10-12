@@ -8,7 +8,7 @@ from pathlib import Path
 from . import config as configuration
 from . import display
 from .layout import Session
-from .process import edit_session, finish_session, grade_session, process_session
+from .process import finish_session, grade_session, process_session
 from .watch import Watcher
 
 
@@ -20,7 +20,6 @@ def main():
     commands.add_parser("watch", help="process each angle as the rig shoots it, and show each complete session")
     for name, text in [
         ("session", "process every angle of a session not processed yet, then build and show its quilt"),
-        ("edit", "edit the grading of a session in darktable, then grade it, build and show its quilt"),
         ("grade", "grade every merged image of a session again, then build and show its quilt"),
         ("quilt", "build and show the quilt of a session"),
     ]:
@@ -40,7 +39,7 @@ def main():
             display.show(arguments.quilt, config.quilt, config.display_url)
         else:
             session = Session(arguments.folder)
-            step = {"session": process_session, "edit": edit_session, "grade": grade_session,
+            step = {"session": process_session, "grade": grade_session,
                     "quilt": finish_session}[arguments.command]
             step(session, config, show=not arguments.no_show)
     except (RuntimeError, OSError) as error:

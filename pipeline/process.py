@@ -6,14 +6,12 @@ A preview:  while the rig shoots, the quilt of the angles graded so far.
 """
 
 import logging
-import shutil
 import tempfile
 import threading
 import time
 from pathlib import Path
 
-from . import darktable, develop, display, merge, quilt
-from .config import REPO
+from . import develop, display, grade, merge, quilt
 from .layout import raw_files
 
 log = logging.getLogger(__name__)
@@ -40,7 +38,7 @@ def process_angle(session, angle, config):
 
 
 def grade_angle(session, angle, config):
-    darktable.grade(session.merged(angle), session.graded(angle), session.grade_xmp(config))
+    grade.grade(session.merged(angle), session.graded(angle), config.grade_xmp)
 
 
 def finish_session(session, config, show=True):
@@ -102,22 +100,8 @@ def process_session(session, config, show=True):
 
 def grade_session(session, config, show=True):
     """Grades every merged image of the session again, e.g. after a new grade.xmp, then finishes the session."""
-    xmp = session.grade_xmp(config)
-    log.info("%s: grading with %s", session.name, xmp)
+    log.info("%s: grading with %s", session.name, config.grade_xmp)
     for angle in session.angles():
         if session.merged(angle).exists():
             grade_angle(session, angle, config)
     return finish_session(session, config, show)
-
-
-def edit_session(session, config, show=True):
-    """Opens the merged image of the angle closest to 0 degrees in darktable, saves the edit as the
-    session's grade.xmp once darktable is closed, then grades the session with it."""
-    angle = session.middle_angle()
-    start_from = session.grade_xmp(config)
-    log.info("%s: editing %s in darktable, starting from %s", session.name, angle.name, start_from)
-    sidecar = darktable.edit(session.merged(angle), start_from, REPO / ".darktable")
-    shutil.copyfile(sidecar, session.folder / "grade.xmp")
-    sidecar.unlink()
-    log.info("%s: saved the edit as %s", session.name, session.folder / "grade.xmp")
-    return grade_session(session, config, show)
