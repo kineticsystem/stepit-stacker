@@ -1,5 +1,5 @@
 // Reads and writes the 16-bit RGB TIFF files of the pipeline: the frames that
-// darktable develops, and the merged image.
+// raw-convert develops, and the merged image.
 
 #pragma once
 

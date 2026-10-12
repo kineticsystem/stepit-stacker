@@ -29,7 +29,7 @@ It follows one idea: **the rig only shoots, and says when an angle and a session
 
 ## The Big Picture
 
-StepIt Stacker is a Python package, `pipeline`, that chains other programs: `raw-convert`, of our module [raw-converter](https://github.com/kineticsystem/raw-converter), for the development, `focus-merge`, our C++ program, for the merge, darktable for the grading, and StepIt Holo, our module, for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
+StepIt Stacker is a Python package, `pipeline`, that chains other programs: `raw-convert`, of our module [raw-converter](https://github.com/kineticsystem/raw-converter), for the development, `focus-merge`, our C++ program, for the merge, `stepit-grader-cli`, of our module [StepIt Grader](https://github.com/kineticsystem/stepit-grader), for the grading, and StepIt Holo, our module, for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
 
 ```mermaid
 ---
@@ -102,7 +102,7 @@ flowchart TB
         Watcher["Watcher<br/>pipeline/watch.py"]
         Develop["1 · Develop<br/>raw-convert"]
         Merge["2 · Merge<br/>focus-merge"]
-        Grade["3 · Grade<br/>darktable-cli, grade.xmp"]
+        Grade["3 · Grade<br/>stepit-grader-cli, grade.xmp"]
         Quilt["4 · Quilt"]
         Show["5 · Show<br/>POST /quilt"]
         Watcher -- "each angle" --> Develop --> Merge --> Grade
@@ -134,22 +134,23 @@ What StepIt Stacker uses of the rig:
 
 | Path | Role |
 |---|---|
-| [`bin/pipeline.sh`](../bin/pipeline.sh) | Builds and starts the container `stepit-pipeline`, with the screen, for darktable's editor, and runs the commands in it. |
-| [`pipeline/__main__.py`](../pipeline/__main__.py) | The commands: `watch`, `session`, `edit`, `grade`, `quilt`, `show`. |
+| [`bin/pipeline.sh`](../bin/pipeline.sh) | Builds and starts the container `stepit-pipeline`, and runs the commands in it. |
+| [`pipeline/__main__.py`](../pipeline/__main__.py) | The commands: `watch`, `session`, `grade`, `quilt`, `show`. |
 | [`pipeline/watch.py`](../pipeline/watch.py) | The watcher: one angle or session at a time, as the rig announces them: each angle's steps 1 to 3, and each session's quilt. |
 | [`pipeline/rig.py`](../pipeline/rig.py) | The rig: its topics through rosbridge, its pictures over HTTP. |
 | [`pipeline/process.py`](../pipeline/process.py) | The steps chained, for an angle and for a session. |
 | [`pipeline/develop.py`](../pipeline/develop.py) | Step 1: runs `raw-convert`. |
-| [`pipeline/darktable.py`](../pipeline/darktable.py) | Step 3, with `darktable-cli`, and darktable's window for `edit`. |
+| [`pipeline/grade.py`](../pipeline/grade.py) | Step 3: runs `stepit-grader-cli`. |
 | [`pipeline/merge.py`](../pipeline/merge.py) | Step 2: runs `focus-merge`. |
 | [`pipeline/quilt.py`](../pipeline/quilt.py) | Step 4. |
 | [`pipeline/display.py`](../pipeline/display.py) | Step 5: uploads the quilt to StepIt Holo's server. |
 | [`pipeline/layout.py`](../pipeline/layout.py) | Where the files of a session are. |
 | [`pipeline/config.py`](../pipeline/config.py) | Reads `config/pipeline.toml`. |
 | [`src/`](../src) | `focus-merge`: `tiff_io` reads and writes the 16-bit TIFFs, `align` aligns the frames, `fuse` merges them, `main` chains them. |
-| [`config/`](../config) | `pipeline.toml`, `grade.xmp`, and `defects.txt`, the camera's known defects, when made. |
+| [`config/`](../config) | `pipeline.toml`, `grade.xmp`, the grading of every image, and `defects.txt`, the camera's known defects, when made. |
 | [`modules/raw-converter/`](https://github.com/kineticsystem/raw-converter) | A Git submodule, our raw converter: `raw-convert`, built with the rest. |
-| [`tests/`](../tests) | `focus-merge` on a synthetic focus stack, the develop step, the quilt, the watcher, the rig and the display. |
+| [`modules/stepit-grader/`](https://github.com/kineticsystem/stepit-grader) | A Git submodule, our editor for the tones and colours of a picture: only its command line, `stepit-grader-cli`, built with the rest, without Qt. |
+| [`tests/`](../tests) | `focus-merge` on a synthetic focus stack, the develop and grade steps, the quilt, the watcher, the rig and the display. |
 | [`docker/`](../docker) | The image, and the development container. |
 
 ## The Pipeline
@@ -192,9 +193,9 @@ A pair that cannot be matched stops the merge with `frame N cannot be aligned wi
 
 ### 3. Grade
 
-`darktable-cli` grades the merged image, reading its colours from its ICC profile, with the session's `grade.xmp`, or `config/grade.xmp` when the session has none, into a 16-bit TIFF in sRGB: the image of the sequence. darktable never overwrites a file, so it exports into a temporary folder, and the result replaces the graded image.
+`stepit-grader-cli --settings config/grade.xmp --colour-space srgb` grades the merged image, reading its colours from its ICC profile, into a 16-bit TIFF in sRGB, its profile embedded: the image of the sequence. sRGB, as the quilt reads the graded images as every viewer does. [`grade.py`](../pipeline/grade.py) gives it a temporary folder beside the graded images, as it names its TIFF after the picture, and the result replaces the graded image, whole. An angle of the 5D Mark II takes about 2.5 seconds.
 
-`./bin/pipeline.sh edit` makes a session's `grade.xmp` with darktable's window: it copies the current grading next to the merged image of the angle closest to 0°, as `<image>.xmp`, the sidecar darktable reads an image's edit from, and opens darktable on it, with a library in memory, so that darktable always reads the sidecar. darktable saves every change there. Once darktable is closed, the sidecar becomes the session's `grade.xmp`, and every angle is graded again.
+One grading, `config/grade.xmp`, grades every angle of every session: a sidecar of [StepIt Grader](https://github.com/kineticsystem/stepit-grader), its settings named as Lightroom names them, e.g. `crs:Exposure2012`. The one in the repo has every value at its default, no edit. The grading is made by hand, on the desktop, in StepIt Grader's editor, on one merged image, and saved over it, see the README; the pipeline needs no screen for it.
 
 ### 4. Quilt
 
@@ -344,18 +345,18 @@ A session that stops halfway, e.g. at a shot whose picture did not come, gets no
 
 ## The Containers
 
-One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, LibRaw and Little CMS for raw-convert, darktable, OpenCV, libtiff, Python with OpenCV and `python3-websocket`, and `libnss-mdns`. `build.sh` builds `raw-convert` and `focus-merge` into `build`.
+One image, `stepit-stacker`, built from [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu 24.04, holds the build tools, LibRaw and Little CMS for raw-convert, OpenCV, libtiff, pugixml for stepit-grader-cli, Python with OpenCV and `python3-websocket`, and `libnss-mdns`. `build.sh` builds `raw-convert`, `focus-merge` and `stepit-grader-cli` into `build`.
 
-`modules/raw-converter` is a Git submodule. `./bin/pipeline.sh start` fetches it from its public repository before building. The image runs in two ways:
+`modules/raw-converter` and `modules/stepit-grader` are Git submodules. `./bin/pipeline.sh start` fetches them from their public repositories before building. stepit-grader is added to the CMake build as a subproject: it builds only its command line, which needs no Qt, the image's being too old for its editor, and shares the raw-converter library built for `raw-convert`. The image runs in two ways:
 
 | Container | Started by | What it mounts |
 |---|---|---|
-| `stepit-pipeline` | `./bin/pipeline.sh start` | The repo at `~/ws`, the home at its own path, the host's Avahi socket, and the X socket and its cookie, for darktable's editor. |
+| `stepit-pipeline` | `./bin/pipeline.sh start` | The repo at `~/ws`, the home at its own path, the host's Avahi socket. |
 | `stepit-stacker`, for development | `./docker/dock.sh stepit-stacker start` | The repo at `~/ws`, the home at its own path. |
 
 The repo is always at `~/ws`, so the CMake cache in `build`, which records its path, is valid in both. The home is mounted at its own path, so that a folder is given to a command by its host path.
 
-`stepit-pipeline` uses the X server of one login, through its cookie, so it is started after logging in, and does not restart with the computer. Docker containers cannot resolve `.local` names, e.g. `stepit.local`, the rig's and StepIt Holo's: the container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`.
+Docker containers cannot resolve `.local` names, e.g. `stepit.local`, the rig's and StepIt Holo's: the container resolves them through the host's Avahi daemon, with `libnss-mdns` and the daemon's socket, `/run/avahi-daemon/socket`.
 
 ## Tests
 
@@ -364,6 +365,7 @@ The repo is always at `~/ws`, so the CMake cache in `build`, which records its p
 | Test | What it checks |
 |---|---|
 | [`test_develop.py`](../tests/test_develop.py) | The develop step against a stand-in for `raw-convert`: the frames in order, the angle's other files left out, the bad pixels counted, the defect map given as a copy and left untouched, no map when there is none, a failure and a missing frame reported. raw-convert's own tests run in its repo. |
+| [`test_grade.py`](../tests/test_grade.py) | The grade step against a stand-in for `stepit-grader-cli`: the settings given, sRGB, the TIFF made in a folder of its own and replacing the graded image, a failure reported with the graded image left as it was, a TIFF not made reported. StepIt Grader's own tests run in its repo. |
 | [`test_focus_merge.py`](../tests/test_focus_merge.py) | `focus-merge` on a synthetic stack of 5 frames, each in focus at a different depth and magnified 1.5% more than the one before: the merged image must be at least twice as close to the sharp scene as the best frame. A frame that cannot be aligned must be reported by number. |
 | [`test_quilt.py`](../tests/test_quilt.py) | The order of the views in the quilt, the crop to 3:4, and the retiming to 48 views. |
 | [`test_process.py`](../tests/test_process.py) | The preview with real quilts and a stand-in for the display: none without an angle, one angle shown flat, none when the session's quilt was built meanwhile, the quilt of the angles done so far under its own name, removed by the session's quilt, none once the session is done, and a display that fails, which does not fail the angle. |
@@ -375,8 +377,8 @@ Checked by hand, to repeat after a change to each part:
 
 | Part | How to check it |
 |---|---|
-| Develop | `./bin/pipeline.sh logs` says how many bad pixels each angle had repaired. A developed frame is linear, at the camera's size, its ICC profile "Linear Rec. 2020". At 100% in darktable, the frame has no isolated bright pixel left, and the fine detail of the subject is intact. |
-| Grade | `./bin/pipeline.sh edit` on a session: darktable opens with the current grading, and closing it grades every angle. |
+| Develop | `./bin/pipeline.sh logs` says how many bad pixels each angle had repaired. A developed frame is linear, at the camera's size, its ICC profile "Linear Rec. 2020". At 100% in StepIt Grader, the frame has no isolated bright pixel left, and the fine detail of the subject is intact. |
+| Grade | A grading saved in StepIt Grader on a merged image, copied over `config/grade.xmp`, then `./bin/pipeline.sh grade` on the session: every graded image looks as the editor showed it. |
 | The watcher | Start it, shoot a FocusStack, follow `./bin/pipeline.sh logs`: each angle is queued as `announced by the rig`, processed, then the session, and the quilt is shown at the end. Stop it during a session and start it again: the missing angles are queued as `catching up`. The WebSocket has no automated test. |
 | Show | `./bin/pipeline.sh show <quilt.png>` with StepIt Holo's server running and the Portrait attached to it, then look through the lens: one picture with depth, not a grid of views nor a blur. StepIt Holo's sample quilt, `wasp_qs8x6a0.75.jpg`, is the reference. |
 
@@ -396,7 +398,9 @@ The rig's side, `StackDone`, `AllStacksDone` and their files, is tested in StepI
 
 **raw-convert for the development.** The development has nothing to edit: it must be linear and the same for every frame. raw-convert does that and only that, with a bad-pixel detector that measures each frame's noise and protects detail spread over several pixels, a map of the camera's known defects, and no configuration to give on every run. It is twice as fast as darktable here. It is our own module, so it changes with the rig's needs. The price: a submodule to fetch.
 
-**darktable for the grading.** The grading is made by hand in darktable's editor, and the same engine applies it without the window, from the XMP file the editor saves. The price is a configuration that must be given on every run, and XMP files tied to darktable's version: the editor and `darktable-cli` are the same darktable, the one of the image.
+**StepIt Grader for the grading.** The grading is made by hand in StepIt Grader's editor, a few sliders as Lightroom's, and `stepit-grader-cli` applies it without a window, with the same engine and at the same full size, from the XMP sidecar the editor saves: the graded images look as the editor shows them. It is our own module, without Qt on the command line, so the image needs no desktop, and the pipeline no screen. The price: a submodule to fetch and build, and the editor, which needs Qt 6.5 or later, installed on the desktop rather than in the image.
+
+**One grading for every session.** The subjects change, but the grading of the rig's pictures, its light and its camera, does not: one sidecar, `config/grade.xmp`, grades them all, with no edit until one is saved. The price: a subject that needs another look is graded again by hand, `./bin/pipeline.sh grade`, after a change of the file.
 
 **focus-merge is our own.** focus-stack, the obvious library, aligns and merges in 8 bits only. `focus-merge` aligns with OpenCV's ECC and merges with a Laplacian pyramid in floating point, a few hundred lines. The price is a merge that is simpler than focus-stack's wavelet merge: fine detail that overlaps, e.g. hairs in front of each other, may come out less clean.
 
