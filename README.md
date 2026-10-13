@@ -111,14 +111,18 @@ Angles already processed are skipped, so `session` also finishes a session that 
 Every angle of every session is graded with `config/grade.xmp`. To make your own grading, with [StepIt Grader](https://github.com/kineticsystem/stepit-grader) installed on the desktop:
 
 1. Open a merged image of a session in StepIt Grader, e.g. that of the angle closest to 0°, `pictures/2026-10-07_12-29-19/2_merged/angle_18_0.0deg.tif`.
-2. Grade it: the white balance, with the eyedropper on something white or grey, the exposure, the contrast, the highlights and shadows, the vibrance and saturation, the sharpness. Every tool works on the whole image: none stays at one place while the subject turns.
-3. Save the settings, `Ctrl+S`: StepIt Grader writes them next to the image, `angle_18_0.0deg.xmp`.
-4. Copy that file over `config/grade.xmp`, and grade the session again:
+2. Start from the camera's look: choose **Edit > Match Camera Look…** and pick two or three raw frames of the same angle, e.g. from `pictures/2026-10-07_12-29-19/1_session/angle_18_0.0deg/`. Each frame holds the JPEG the camera made of it; StepIt Grader finds the grade that makes the frames look like those JPEGs, in about 20 seconds a frame, then **Apply** sets it. The merged image has the tones of the frames it was made from, so their grade fits it.
+3. Adjust what the subject needs: the white balance, with the eyedropper at the top of **Color** on something white or grey, the exposure, the contrast, the highlights and shadows, the vibrance and saturation, the tone curve, the colour mixer, the sharpness. Every tool works on the whole image: none stays at one place while the subject turns.
+4. Save the settings, `Ctrl+S`, or wait a second: StepIt Grader writes them next to the image, `angle_18_0.0deg.xmp`.
+5. Copy that file over `config/grade.xmp`, and grade the session again:
 
    ```bash
    cp pictures/2026-10-07_12-29-19/2_merged/angle_18_0.0deg.xmp config/grade.xmp
    ./bin/pipeline.sh grade pictures/2026-10-07_12-29-19
    ```
+
+> [!IMPORTANT]
+> Turn the camera's Auto Lighting Optimizer off for the frames you match: it changes each JPEG by its content, so no grade can match it. The raw frames, which the pipeline develops, are the same either way.
 
 Every later session is graded the same way. To go back to no edit, `git checkout config/grade.xmp`.
 
