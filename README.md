@@ -113,11 +113,11 @@ Every angle of every session is graded with `config/grade.xmp`. To make your own
 1. Open a merged image of a session in StepIt Grader, e.g. that of the angle closest to 0°, `pictures/2026-10-07_12-29-19/2_merged/angle_18_0.0deg.tif`.
 2. Start from the camera's look: choose **Edit > Match Camera Look…** and pick two or three raw frames of the same angle, e.g. from `pictures/2026-10-07_12-29-19/1_session/angle_18_0.0deg/`. Each frame holds the JPEG the camera made of it; StepIt Grader finds the grade that makes the frames look like those JPEGs, in about 20 seconds a frame, then **Apply** sets it. The merged image has the tones of the frames it was made from, so their grade fits it.
 3. Adjust what the subject needs: the white balance, with the eyedropper at the top of **Color** on something white or grey, the exposure, the contrast, the highlights and shadows, the vibrance and saturation, the tone curve, the colour mixer, the sharpness. Every tool works on the whole image: none stays at one place while the subject turns.
-4. Save the settings, `Ctrl+S`, or wait a second: StepIt Grader writes them next to the image, `angle_18_0.0deg.xmp`.
+4. Save the settings, `Ctrl+S`, or wait a second: StepIt Grader writes them next to the image, as `angle_18_0.0deg.tif.xmp`, the TIFF's whole name with `.xmp`.
 5. Copy that file over `config/grade.xmp`, and grade the session again:
 
    ```bash
-   cp pictures/2026-10-07_12-29-19/2_merged/angle_18_0.0deg.xmp config/grade.xmp
+   cp pictures/2026-10-07_12-29-19/2_merged/angle_18_0.0deg.tif.xmp config/grade.xmp
    ./bin/pipeline.sh grade pictures/2026-10-07_12-29-19
    ```
 
