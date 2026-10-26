@@ -156,7 +156,7 @@ pictures/2026-10-07_12-29-19/
 | `grade <session>` | Grades every angle again, e.g. after a change to `grade.xmp`, then shows the quilt. |
 | `quilt <session>` | Builds and shows the quilt again. |
 | `show <quilt.png>` | Shows a quilt. |
-| `test` | Runs the tests. |
+| `test` | Runs the tests, then checks that every diagram of `docs/diagrams` is rendered from its source. |
 
 `session`, `grade` and `quilt` take `--no-show` to leave the Portrait as it is.
 

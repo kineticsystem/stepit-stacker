@@ -31,93 +31,8 @@ It follows one idea: **the rig only shoots, and says when an angle and a session
 
 StepIt Stacker is a Python package, `pipeline`, that chains other programs: `raw-convert`, of our module [raw-converter](https://github.com/kineticsystem/raw-converter), for the development, `focus-merge`, our C++ program, for the merge, `stepit-grader-cli`, of our module [StepIt Grader](https://github.com/kineticsystem/stepit-grader), for the grading, and StepIt Holo, our module, for the display. It runs in one container, `stepit-pipeline`, which follows the rig.
 
-```mermaid
----
-config:
-  theme: base
-  themeCSS: ".edgeLabel p { padding: 4px 10px; }"
-  flowchart:
-    padding: 20
-    nodeSpacing: 40
-    rankSpacing: 50
-  class:
-    padding: 16
-  sequence:
-    boxMargin: 12
-    boxTextMargin: 8
-    noteMargin: 28
-    messageMargin: 40
-    actorMargin: 60
-    labelBoxWidth: 56
-    labelBoxHeight: 28
-  themeVariables:
-    primaryColor: "#3b6fb6"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#2c5590"
-    lineColor: "#8b949e"
-    textColor: "#4d86d6"
-    actorBkg: "#3b6fb6"
-    actorBorder: "#2c5590"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#8b949e"
-    signalColor: "#8b949e"
-    signalTextColor: "#4d86d6"
-    noteBkgColor: "#3b6fb6"
-    noteTextColor: "#ffffff"
-    noteBorderColor: "#2c5590"
-    secondaryColor: "#3b6fb6"
-    tertiaryColor: "#3b6fb6"
-    clusterBkg: "transparent"
-    clusterBorder: "#8b949e"
-    titleColor: "#4d86d6"
-    edgeLabelBackground: "#3b6fb6"
-    classText: "#ffffff"
-    labelBoxBkgColor: "#3b6fb6"
-    labelBoxBorderColor: "#2c5590"
-    labelTextColor: "#ffffff"
-    loopTextColor: "#4d86d6"
-    mainBkg: "#3b6fb6"
-    nodeBorder: "#2c5590"
-    nodeTextColor: "#ffffff"
-    secondaryBorderColor: "#2c5590"
-    secondaryTextColor: "#ffffff"
-    tertiaryBorderColor: "#2c5590"
-    tertiaryTextColor: "#ffffff"
-    errorBkgColor: "#3b6fb6"
-    errorTextColor: "#ffffff"
----
-flowchart TB
-    subgraph Rig["The rig, stepit.local"]
-        StackDone["StackDone<br/>after the last shot of an angle"]
-        AllStacksDone["AllStacksDone<br/>after the last angle"]
-        Rosbridge["rosbridge<br/>port 9090"]
-        WebServer["StepIt Camera's web server<br/>port 8090"]
-        RigPictures["~/stepit-macro/pictures<br/>CR2 files, stack.json,<br/>all_stacks.json"]
-        StackDone -- "/focus_stack/stack_done" --> Rosbridge
-        AllStacksDone -- "/focus_stack/all_stacks_done" --> Rosbridge
-        StackDone -- "writes" --> RigPictures
-        AllStacksDone -- "writes" --> RigPictures
-    end
-    subgraph PC["This computer, container stepit-pipeline"]
-        Watcher["Watcher<br/>pipeline/watch.py"]
-        Develop["1 · Develop<br/>raw-convert"]
-        Merge["2 · Merge<br/>focus-merge"]
-        Grade["3 · Grade<br/>stepit-grader-cli, grade.xmp"]
-        Quilt["4 · Quilt"]
-        Show["5 · Show<br/>POST /quilt"]
-        Watcher -- "each angle" --> Develop --> Merge --> Grade
-        Watcher -- "each complete session" --> Quilt --> Show
-    end
-    Holo["StepIt Holo's server<br/>holo.local, port 8095"]
-    Portrait["Looking Glass Portrait"]
-    Rosbridge -- "WebSocket, JSON" --> Watcher
-    RigPictures --> WebServer
-    WebServer -- "HTTP: listings, files" --> Watcher
-    Show -- "HTTP: the quilt" --> Holo
-    Holo -- "HDMI" --> Portrait
-
-    classDef default fill:#3b6fb6,stroke:#2c5590,color:#ffffff
-```
+<!-- The source is diagrams/big-picture.mmd: change it, then run bin/render-diagrams.sh. -->
+<p align="center"><img src="diagrams/big-picture.svg" alt="The rig's StackDone and AllStacksDone publish each finished angle and session through rosbridge and write the pictures, which StepIt Camera's web server serves; the watcher of this computer follows rosbridge, copies the pictures over HTTP, develops, merges and grades each angle, and builds and shows a quilt of each complete session on the Looking Glass Portrait through StepIt Holo's server." width="719"></p>
 
 What StepIt Stacker uses of the rig:
 
@@ -228,81 +143,8 @@ The form is built with the standard library, as the rest of the pipeline's HTTP,
 
 ### Following the Rig
 
-```mermaid
----
-config:
-  theme: base
-  themeCSS: ".edgeLabel p { padding: 4px 10px; }"
-  flowchart:
-    padding: 20
-    nodeSpacing: 40
-    rankSpacing: 50
-  class:
-    padding: 16
-  sequence:
-    boxMargin: 12
-    boxTextMargin: 8
-    noteMargin: 28
-    messageMargin: 40
-    actorMargin: 60
-    labelBoxWidth: 56
-    labelBoxHeight: 28
-  themeVariables:
-    primaryColor: "#3b6fb6"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#2c5590"
-    lineColor: "#8b949e"
-    textColor: "#4d86d6"
-    actorBkg: "#3b6fb6"
-    actorBorder: "#2c5590"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#8b949e"
-    signalColor: "#8b949e"
-    signalTextColor: "#4d86d6"
-    noteBkgColor: "#3b6fb6"
-    noteTextColor: "#ffffff"
-    noteBorderColor: "#2c5590"
-    secondaryColor: "#3b6fb6"
-    tertiaryColor: "#3b6fb6"
-    clusterBkg: "transparent"
-    clusterBorder: "#8b949e"
-    titleColor: "#4d86d6"
-    edgeLabelBackground: "#3b6fb6"
-    classText: "#ffffff"
-    labelBoxBkgColor: "#3b6fb6"
-    labelBoxBorderColor: "#2c5590"
-    labelTextColor: "#ffffff"
-    loopTextColor: "#4d86d6"
-    mainBkg: "#3b6fb6"
-    nodeBorder: "#2c5590"
-    nodeTextColor: "#ffffff"
-    secondaryBorderColor: "#2c5590"
-    secondaryTextColor: "#ffffff"
-    tertiaryBorderColor: "#2c5590"
-    tertiaryTextColor: "#ffffff"
-    errorBkgColor: "#3b6fb6"
-    errorTextColor: "#ffffff"
----
-sequenceDiagram
-    participant Rig as FocusStack
-    participant Rosbridge as rosbridge
-    participant Watcher as Watcher
-    participant Steps as Steps 1 to 3
-    Watcher->>Rosbridge: subscribe to stack_done and all_stacks_done
-    loop every angle
-        Note over Rig: last picture saved,<br/>writes stack.json
-        Rig->>Rosbridge: stack_done, the angle's folder
-        Rosbridge->>Watcher: publish, JSON
-        Note over Rig,Watcher: the folder copied over HTTP
-        Watcher->>Steps: the angle
-        Steps-->>Watcher: 3_graded/angle.tif
-    end
-    Note over Rig: last angle done,<br/>writes all_stacks.json
-    Rig->>Rosbridge: all_stacks_done, the session's folder
-    Rosbridge->>Watcher: publish, JSON
-    Note over Rig,Watcher: all_stacks.json copied over HTTP
-    Note over Watcher: quilt and show
-```
+<!-- The source is diagrams/following-the-rig.mmd: change it, then run bin/render-diagrams.sh. -->
+<p align="center"><img src="diagrams/following-the-rig.svg" alt="The watcher subscribes to stack_done and all_stacks_done; for every angle FocusStack publishes the angle's folder through rosbridge, the watcher copies it over HTTP and runs steps 1 to 3; after the last angle it publishes the session's folder, and the watcher copies all_stacks.json, builds the quilt and shows it." width="755"></p>
 
 The watcher opens the WebSocket and subscribes to `/focus_stack/stack_done` and `/focus_stack/all_stacks_done`; rosbridge then pushes every message as it is published. The rig never needs the address of this computer: to it, the watcher is one more subscriber, as the pages of StepIt UI are. The watcher pings every 20 seconds, which finds a rig that went away without closing the connection, and connects again every 10 seconds.
 

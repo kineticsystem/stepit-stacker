@@ -9,7 +9,7 @@
 #   ./bin/pipeline.sh grade <session>          grade it again, then show it
 #   ./bin/pipeline.sh quilt <session>          build its quilt again, then show it
 #   ./bin/pipeline.sh show <quilt.png>
-#   ./bin/pipeline.sh test                     run the tests
+#   ./bin/pipeline.sh test                     run the tests, then check the diagrams
 
 repo="$(readlink -f "$(dirname "$(readlink -f "$0")")/..")"
 image="${STACK_IMAGE:-stepit-stacker}"
@@ -69,6 +69,7 @@ case "$command" in
     test)
         require_running
         docker exec "${terminal[@]}" -w /home/developer/ws "$name" python3 -m unittest discover -v tests
+        "$repo/bin/check-diagrams.sh"
         ;;
     *)
         sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
