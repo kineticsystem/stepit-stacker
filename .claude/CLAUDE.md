@@ -15,7 +15,7 @@ Everything runs in a Docker image built from this repo, on a PC, not on the rig.
 ./bin/pipeline.sh logs
 ./bin/pipeline.sh session pictures/<session>  # process a session on disk
 ./bin/pipeline.sh grade pictures/<session>    # grade again, e.g. after a new config/grade.xmp
-./bin/pipeline.sh test                      # python3 -m unittest discover -v tests, in the container
+./bin/pipeline.sh test                      # python3 -m unittest discover -v tests, in the container, then bin/check-diagrams.sh
 ./bin/pipeline.sh stop
 ```
 
@@ -43,8 +43,13 @@ For the `architect` and `reviewer` skills: what they cannot find out alone.
 
 - `docs/ARCHITECTURE.md` follows the one idea above. Its sections, in order: Introduction, The Big Picture, The Parts (a table of path and role), The Pipeline (one subsection per step, numbered as in the README), The Watcher, The Containers, Tests (the automated tests, and a table of what is checked by hand), How to Extend StepIt Stacker, Design Decisions and Trade-offs.
 - The review goes in `docs/Review.md`, the skill's default.
+- **Diagrams** follow the `beautiful-mermaid-diagrams` skill, not the blue style of `write-docs`: colours by role, compact, readable in light and dark mode. Each is shown as an image: its source is `docs/diagrams/<name>.mmd`, rendered by `bin/render-diagrams.sh` into an SVG beside it, on the host (it needs Node.js and Chrome); commit both. `bin/check-diagrams.sh`, run by `./bin/pipeline.sh test`, fails when an SVG is older than its source.
 - Do not review the submodules here: they have their own repositories, documents and reviews.
 - **Probes run in the container**: a throwaway test is a `unittest` file in `tests/`, run with `./bin/pipeline.sh test` or, in the development container, `python3 -m unittest -v tests.<module>`. The rig's side is tested in StepIt Macro; the WebSocket to the rig has no automated test.
+
+## Pull Request Notes
+
+Each pull request has a notes file in [docs/pr/](../docs/pr/README.md): what we discussed, what we chose, and why. One file per pull request, written while the branch is open. Keep them simple: short sentences, one idea per paragraph, and a diagram when it explains faster than words.
 
 ## Conventions
 
